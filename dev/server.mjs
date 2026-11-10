@@ -67,7 +67,7 @@ const propsStore = { ADMIN_PASSWORD: "lanek-dev", DRIVE_ROOT_ID: "root", GCHAT_W
 const cacheStore = new Map();
 const sandbox = {
   console, Date, Math, JSON, String, Number, Object, Array, RegExp, Error, Set, Promise,
-  SpreadsheetApp: { getActiveSpreadsheet: () => ss },
+  SpreadsheetApp: { getActiveSpreadsheet: () => ss, openById: () => ss },
   PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => propsStore[k] ?? null, setProperty: (k, v) => (propsStore[k] = v) }) },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   CacheService: { getScriptCache: () => ({ get: (k) => cacheStore.get(k) ?? null, put: (k, v) => cacheStore.set(k, v), remove: (k) => cacheStore.delete(k) }) },
@@ -112,8 +112,9 @@ http.createServer((req, res) => {
   }
   let p = decodeURIComponent(req.url.split("?")[0]);
   if (p === "/") p = "/index.html";
+  const cors = { "Access-Control-Allow-Origin": "*" };
   const f = path.join(root, p);
   if (!f.startsWith(root) || f.includes("/_nextjs") || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { res.writeHead(404); return res.end("404"); }
-  res.writeHead(200, { "Content-Type": mime[path.extname(f)] || "application/octet-stream" });
+  res.writeHead(200, { ...cors, "Content-Type": mime[path.extname(f)] || "application/octet-stream" });
   fs.createReadStream(f).pipe(res);
 }).listen(PORT, () => console.log(`http://localhost:${PORT}`));

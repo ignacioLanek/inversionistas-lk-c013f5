@@ -26,8 +26,10 @@ const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e) && e.length <=
 const clean = (s, n) => String(s == null ? '' : s).trim().slice(0, n || 200);
 const bool = (v) => v === true || String(v).toUpperCase() === 'TRUE';
 
+let _ss = null;
 function db(name) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  // Si el script no está vinculado a la Sheet, se usa la propiedad SHEET_ID
+  const ss = _ss || (_ss = prop('SHEET_ID') ? SpreadsheetApp.openById(prop('SHEET_ID')) : SpreadsheetApp.getActiveSpreadsheet());
   return ss.getSheetByName(name) || ss.insertSheet(name);
 }
 function readAll(name) {
@@ -521,7 +523,7 @@ function seedContenido(overwrite) {
 }
 
 /*
- * Formato de "cuerpo" (se edita directo en la pestaña `contenido` de la Sheet):
+ * Formato de "cuerpo" (se edita directo en la pestaña "contenido" de la Sheet):
  *   - Cada línea es un párrafo.
  *   - "STAT::36%::texto" muestra una cifra destacada.
  *   - "IMG::torre-control.jpg" muestra una imagen del sitio.
