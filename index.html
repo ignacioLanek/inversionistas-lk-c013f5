@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#1170ee" />
+  <title>Lanek · Salud más allá del Hospital — Inversionistas</title>
+  <link rel="icon" href="assets/img/nav-logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <!-- ═══ PANTALLA DE ACCESO ═══ -->
+  <main id="gate" class="gate-screen" hidden>
+    <form id="gate-form" class="card gate" novalidate>
+      <img src="assets/img/logotipo-degrade.png" alt="Lanek" class="gate-logo" />
+      <h1>Salud más allá del Hospital</h1>
+      <p class="muted">Presentación privada para inversionistas. Ingresa tu correo para continuar.</p>
+      <input id="g-email" type="email" required placeholder="tu@correo.com" autocomplete="email" inputmode="email" />
+      <div id="g-extra" hidden>
+        <input id="g-nombre" placeholder="Nombre" autocomplete="name" />
+        <input id="g-empresa" placeholder="Empresa" autocomplete="organization" />
+        <div class="privacy">
+          <b>Tu privacidad</b>
+          <ul>
+            <li>Usamos tu correo solo para darte acceso y hacer seguimiento de tu interés.</li>
+            <li>Registramos qué secciones visitas, para mejorar la presentación.</li>
+            <li>No compartimos tus datos con terceros ni los usamos para publicidad.</li>
+            <li>Puedes pedirnos eliminar tus datos en cualquier momento escribiendo a <span class="privacy-mail"></span>.</li>
+          </ul>
+          <label class="check"><input id="g-consent" type="checkbox" />
+            <span>He leído y acepto los <a href="terminos.html" target="_blank" rel="noopener">Términos y Condiciones</a> y el tratamiento de mis datos descrito arriba.</span></label>
+        </div>
+      </div>
+      <p id="g-err" class="err" role="alert"></p>
+      <button id="g-btn" class="btn" type="submit">Continuar</button>
+    </form>
+  </main>
+
+  <!-- ═══ SITIO ═══ -->
+  <div id="site" hidden>
+    <header class="nav">
+      <a class="nav-brand" href="#top"><img src="assets/img/nav-logo.png" alt="Lanek" /><span>INVERSIONISTAS</span></a>
+      <nav>
+        <a href="#secciones">Presentación</a>
+        <a href="#reunion">Reunión</a>
+        <a href="#dataroom" class="btn btn-sm">Data room</a>
+      </nav>
+    </header>
+
+    <section class="hero" id="top">
+      <div class="wrap hero-grid">
+        <div>
+          <img class="hero-logo" src="assets/img/logotipo-degrade.png" alt="Lanek" />
+          <h1>Salud más allá del Hospital</h1>
+          <p class="lead">Sistema Inteligente de Hospital en Casa: ayudamos a clínicas y hospitales a <b>atender más pacientes</b> sin construir camas.</p>
+        </div>
+        <div class="hero-photo"><img src="assets/img/hero-foto.jpg" alt="Paciente atendido en su hogar" /></div>
+      </div>
+      <div class="wrap">
+        <div id="video" class="video"></div>
+      </div>
+    </section>
+
+    <section id="secciones" class="wrap">
+      <span class="chip">Presentación</span>
+      <h2 class="h-lg">Conoce Lanek en seis pasos</h2>
+      <div id="cards" class="cards"></div>
+    </section>
+
+    <section id="reunion" class="wrap">
+      <div class="card cta">
+        <span class="chip">Siguiente paso</span>
+        <h2 class="h-lg">Conversemos</h2>
+        <p class="muted">Agenda una reunión con nosotros o déjanos un mensaje directo.</p>
+        <div id="cta-actions" class="row">
+          <button id="btn-agendar" class="btn">Ver disponibilidad</button>
+          <button id="btn-msg" class="btn btn-ghost">Enviar mensaje</button>
+        </div>
+        <div id="cal" hidden></div>
+        <form id="msg-form" hidden>
+          <textarea id="msg-text" rows="4" required placeholder="Cuéntanos qué te interesa conversar…"></textarea>
+          <button class="btn">Enviar</button>
+        </form>
+        <p id="msg-ok" hidden>¡Gracias! Te responderemos a la brevedad.</p>
+      </div>
+    </section>
+
+    <section id="dataroom" class="wrap">
+      <div class="card dr">
+        <span class="chip">Acceso restringido</span>
+        <h2 class="h-lg">Data room</h2>
+        <div id="dr-body"><p class="muted">Cargando…</p></div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <img src="assets/img/logotipo-blanco.png" alt="Lanek" />
+      <p>Hospital en Casa · Plataforma Lanek HD<br />Valparaíso · Santiago, Chile</p>
+      <p>© <span id="year"></span> Lanek SpA. Información confidencial.</p>
+      <p><a href="terminos.html">Términos y Condiciones</a> · <button id="btn-delete" class="linklike">Eliminar mis datos</button> · <a href="https://lanek.cl" target="_blank" rel="noopener">lanek.cl</a></p>
+    </footer>
+  </div>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/dataroom.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>

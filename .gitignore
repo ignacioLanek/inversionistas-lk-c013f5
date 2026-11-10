@@ -1,0 +1,6 @@
+_nextjs/
+node_modules/
+.claude/
+dev/demo.pdf
+.DS_Store
+tsconfig.tsbuildinfo
