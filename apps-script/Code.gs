@@ -15,7 +15,7 @@ const COLS = {
 };
 const TERMS_VERSION = '2026-11-borrador';
 const SITE_TTL = 30 * 24 * 3600, DR_TTL = 2 * 3600, ADMIN_TTL = 8 * 3600, MAX_FILE_BYTES = 25 * 1024 * 1024;
-const CLIENT_EVENTS = ['ingreso_recurrente', 'video_play', 'video_progreso', 'video_audio_activado', 'seccion_vista', 'cta_agendar_click', 'reunion_agendada'];
+const CLIENT_EVENTS = ['ingreso_recurrente', 'video_play', 'video_progreso', 'video_audio_activado', 'seccion_vista', 'cta_agendar_click', 'reunion_agendada', 'fit_abierta', 'fit_cerrada', 'fit_visible_segundos', 'fit_cta_click'];
 
 /* ───────────── utilidades ───────────── */
 const props = () => PropertiesService.getScriptProperties();
@@ -173,6 +173,7 @@ function notificar(email, tipo, seccion) {
   else if (tipo === 'solicitud_acceso_dataroom') gchat('🔐 *Solicitud de acceso al data room* — pendiente de aprobación\n' + quien);
   else if (tipo === 'primer_ingreso') gchat('👀 *Primer ingreso de un prospecto*\n' + quien);
   else if (tipo === 'reunion_agendada') gchat('📅 *Reunión agendada*\n' + quien);
+  else if (tipo === 'fit_abierta') gchat('🎯 ' + (c.nombre || email) + ' abrió ¿Calzamos contigo?');
   else if (tipo === 'dataroom_ingreso') gchat('🗄️ *Ingreso al data room*\n' + quien);
   else if (tipo === 'documento_abierto' && seccion && isSensitive(seccion)) gchat('⚠️ *Documento sensible abierto*\n' + seccion + '\n' + quien);
 }
@@ -392,7 +393,7 @@ function eliminarContacto(email) {
   });
 }
 function resumen(evs) {
-  const sec = {}, docs = {}, vis = {}, volvieron = {}, active = {}, v = { play: {}, p25: {}, p50: {}, p75: {}, p100: {}, audio: {} };
+  const sec = {}, docs = {}, vis = {}, volvieron = {}, active = {}, v = { play: {}, p25: {}, p50: {}, p75: {}, p100: {}, audio: {} }, fit = { llegaron: {}, abrieron: {}, cta: {}, seg: 0 };
   let total = 0;
   evs.forEach((e) => {
     active[e.email] = 1;
@@ -402,6 +403,10 @@ function resumen(evs) {
       const s = sec[e.seccion] || (sec[e.seccion] = { seg: 0, vistas: 0, p: {} });
       s.seg += e.duracion_segundos; s.vistas++; s.p[e.email] = 1; total += e.duracion_segundos;
     }
+    if (e.tipo_evento === 'seccion_vista' && e.seccion === 'fit') fit.llegaron[e.email] = 1;
+    if (e.tipo_evento === 'fit_abierta') fit.abrieron[e.email] = 1;
+    if (e.tipo_evento === 'fit_cta_click') fit.cta[e.email] = 1;
+    if (e.tipo_evento === 'fit_visible_segundos') fit.seg += e.duracion_segundos;
     if (e.tipo_evento === 'documento_abierto' && e.seccion) docs[e.seccion] = (docs[e.seccion] || 0) + 1;
     if (e.tipo_evento === 'video_play') v.play[e.email] = 1;
     if (e.tipo_evento === 'video_audio_activado') v.audio[e.email] = 1;
@@ -412,6 +417,7 @@ function resumen(evs) {
     visitantes: n(vis), volvieron: Object.keys(volvieron), promedioSeg: n(active) ? total / n(active) : 0, totalSeg: total,
     secciones: Object.keys(sec).map((k) => ({ nombre: k, seg: sec[k].seg, vistas: sec[k].vistas, personas: n(sec[k].p) })).sort((a, b) => b.seg - a.seg),
     docs: Object.keys(docs).map((k) => [k, docs[k]]).sort((a, b) => b[1] - a[1]),
+    fit: { llegaron: n(fit.llegaron), abrieron: n(fit.abrieron), cta: n(fit.cta), seg: fit.seg, quienes: Object.keys(fit.abrieron) },
     video: { play: n(v.play), p25: n(v.p25), p50: n(v.p50), p75: n(v.p75), p100: n(v.p100), audio: n(v.audio) },
   };
 }
@@ -469,7 +475,7 @@ function driveIndex() {
 function resumenDiario() {
   const r = resumen(readEventos(new Date(Date.now() - 86400000)));
   const top = r.secciones.slice(0, 3).map((s) => '• ' + s.nombre + ': ' + fmtDur(s.seg) + ' (' + s.personas + ' pers.)').join('\n') || '• (sin datos)';
-  gchat('📊 *Resumen diario Lanek — inversionistas*\nVisitas del día: ' + r.visitantes + '\nTiempo promedio por visitante: ' + fmtDur(r.promedioSeg) + '\nSecciones más vistas:\n' + top + '\nProspectos que volvieron: ' + (r.volvieron.length ? r.volvieron.join(', ') : 'ninguno'));
+  gchat('📊 *Resumen diario Lanek — inversionistas*\nVisitas del día: ' + r.visitantes + '\nTiempo promedio por visitante: ' + fmtDur(r.promedioSeg) + '\nSecciones más vistas:\n' + top + '\nAbrieron la sección de fit: ' + (r.fit.quienes.length ? r.fit.quienes.join(', ') : 'nadie') + '\nProspectos que volvieron: ' + (r.volvieron.length ? r.volvieron.join(', ') : 'ninguno'));
 }
 /** Detecta reservas nuevas de la página de citas de Google Calendar y las registra como reunion_agendada. */
 function revisarReuniones() {
@@ -498,6 +504,7 @@ function setup() {
   const ct = db('contactos');
   ct.getRange(2, 4, 1000, 2).setNumberFormat('General').insertCheckboxes(); // acceso_sitio y acceso_dataroom como casillas
   seedContenido(false);
+  asegurarFit();
   secret();
   if (!prop('ADMIN_PASSWORD')) props().setProperty('ADMIN_PASSWORD', Utilities.getUuid().slice(0, 13));
   if (!prop('SUMMARY_HOUR')) props().setProperty('SUMMARY_HOUR', '18');
@@ -528,6 +535,19 @@ function seedContenido(overwrite) {
  *   - "STAT::36%::texto" muestra una cifra destacada.
  *   - "IMG::torre-control.jpg" muestra una imagen del sitio.
  */
+/** Tarjeta "¿Calzamos?" (se guarda en la pestaña contenido, id "fit"; no está en el repo público). Sintaxis: BLOQUE::ETIQUETA::texto ( || = salto de línea ). */
+const FIT_ROW = { id: 'fit', titulo: '¿Calzamos?', resumen: 'Cosas que creemos que debes tener en cuenta:', cuerpo: [
+  'BLOQUE::ETAPA::Empresa con ingresos recurrentes y creciente lanzando a mercado un nuevo producto global y escalable, el cual esta logrando las primeras ventas. Ronda puente vía SAFE, con cap y descuento para acelerar la entrada al mercado Chileno. Próxima Ronda será en 15 a 18 meses más (Pre Serie A) para consolidar chile y comenzar expansión por LATAM',
+  'BLOQUE::TESIS::Healthtech B2B: Plataform de software e inteligencia clínica vendidos a prestadores de salud.||No somos B2C, ni dispositivos médicos, ni biotecnología.',
+  'BLOQUE::GEOGRAFÍA Y HORIZONTE::LATAM hispanohablante, partiendo por Chile. Ventana base de salida 2033-2034. Hacia 2030, con operación en tres países, se abre un punto de inflexión de liquidez: una salida anticipada es posible, pero no es el supuesto de planificación.',
+  'BLOQUE::DÓNDE ESTÁ EL RIESGO::El riesgo es comercial y de adopción institucional, no tecnológico ni clínico. El producto existe, el problema está validado y tenemos contratos firmados. Lo que falta probar es la velocidad de venta en un sector de ciclos largos y obtener evidencia con casos de negocio relevantes.',
+].join('\n') };
+/** Agrega la fila "fit" si no existe (idempotente). Ejecutar una vez tras actualizar el código. */
+function asegurarFit() {
+  if (readAll('contenido').some((r) => r.id === 'fit')) return;
+  const sh = db('contenido');
+  sh.getRange(sh.getLastRow() + 1, 1, 1, 4).setValues([[FIT_ROW.id, FIT_ROW.titulo, FIT_ROW.resumen, FIT_ROW.cuerpo]]);
+}
 const DEFAULT_CONTENIDO = [
   { id: 'problematica', titulo: 'Problemática', resumen: 'Más personas que esperan una cama.', cuerpo: [
     'El sistema de salud enfrenta un déficit crítico de camas hospitalarias, lo que genera largas listas de espera, saturación en hospitales y limita el acceso a una atención oportuna y de calidad.',

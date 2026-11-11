@@ -2,7 +2,7 @@
 const app = $("#app");
 const aToken = () => store.get("lk_admin", true);
 const call = (a, d = {}) => api(a, { token: aToken(), ...d });
-const TITLES = { problematica: "Problemática", solucion: "Solución", producto: "Producto", personas: "Las Personas", modelo: "Modelo de Negocio y Mercado", traccion: "Tracción y Roadmap" };
+const TITLES = { problematica: "Problemática", solucion: "Solución", producto: "Producto", personas: "Las Personas", fit: "¿Calzamos?", modelo: "Modelo de Negocio y Mercado", traccion: "Tracción y Roadmap" };
 const nice = (id) => TITLES[id] || id;
 const fdate = (s) => (s ? new Date(s).toLocaleString("es-CL") : "—");
 
@@ -55,10 +55,15 @@ async function contacto(email) {
   const docs = ev.filter((e) => e.tipo_evento.startsWith("documento_")).reverse();
   const total = Object.values(secs).reduce((a, s) => a + s.seg, 0);
   const c = r.contacto;
+  const fe = (t) => ev.filter((e) => e.tipo_evento === t);
+  const fit = { llego: ev.some((e) => e.tipo_evento === "seccion_vista" && e.seccion === "fit"), abierta: fe("fit_abierta").length, abierto: fe("fit_cerrada").reduce((a, e) => a + e.duracion_segundos, 0), visible: fe("fit_visible_segundos").reduce((a, e) => a + e.duracion_segundos, 0), cta: fe("fit_cta_click").length };
   app.innerHTML = bar('<button class="pill" id="back">← Contactos</button>') +
     `<h2>${esc(c.nombre || c.email)}</h2><p class="muted">${esc(c.email)}${c.empresa ? " · " + esc(c.empresa) : ""}${c.origen ? " · origen: " + esc(c.origen) : ""}</p>
     <div class="row"><button class="pill off" id="del">Eliminar datos de este contacto</button></div>
     <div class="grid3"><div class="gstat"><b>${visitas.length}</b>visitas</div><div class="gstat"><b>${fmtDur(total)}</b>tiempo en secciones</div><div class="gstat"><b>${docs.filter((d) => d.tipo_evento === "documento_abierto").length}</b>documentos abiertos</div></div>
+    <h3>¿Calzamos? (sección de fit)</h3>
+    <div class="grid3"><div class="gstat"><b>${fit.llego ? "Sí" : "No"}</b>llegó a la sección</div><div class="gstat"><b>${fit.abierta}</b>veces abierta${fit.abierta ? ` · ${fmtDur(fit.abierto)} abierta` : ""}</div><div class="gstat"><b>${fmtDur(fit.visible)}</b>visible estando abierta</div></div>
+    <p class="muted">Clics en «Si calzamos, conversemos»: ${fit.cta}</p>
     <h3>Historial de visitas</h3><ul class="clean">${visitas.slice().reverse().map((v) => `<li>${fdate(v.timestamp)} — ${v.tipo_evento === "primer_ingreso" ? "primer ingreso" : "volvió"}</li>`).join("") || "<li>—</li>"}</ul>
     <h3>Secciones más vistas</h3><ul class="clean">${Object.entries(secs).sort((a, b) => b[1].seg - a[1].seg).map(([k, s]) => `<li>${esc(nice(k))}: ${fmtDur(s.seg)} (${s.n} vistas)</li>`).join("") || "<li>—</li>"}</ul>
     <h3>Documentos</h3><ul class="clean">${docs.map((d) => `<li>${fdate(d.timestamp)} — ${d.tipo_evento === "documento_descargado" ? "⬇ " : ""}${esc(d.seccion)}${d.duracion_segundos ? ` (${fmtDur(d.duracion_segundos)})` : ""}</li>`).join("") || "<li>—</li>"}</ul>`;
@@ -81,6 +86,9 @@ async function agregado(dias) {
     <h3 style="margin-top:1.5rem">Video: retención</h3>
     <div class="grid3">${[["Reprodujeron", v.play], ["Llegaron al 25%", v.p25], ["50%", v.p50], ["75%", v.p75], ["100%", v.p100], ["Activaron audio", v.audio]].map(([k, n]) => `<div class="gstat"><b>${n}</b>${k}${k !== "Reprodujeron" ? ` · ${pct(n)}%` : ""}</div>`).join("")}</div>
     <p class="muted">Abandono: ${v.play ? 100 - pct(v.p100) : 0}% no llegó al final.</p>
+    <h3>¿Calzamos? (fit)</h3>
+    <div class="grid3">${[["Llegaron a la sección", r.fit.llegaron], ["La abrieron", r.fit.abrieron], ["Clic en «conversemos»", r.fit.cta]].map(([k, n]) => `<div class="gstat"><b>${n}</b>${k}</div>`).join("")}</div>
+    <p class="muted">La abrieron ${r.fit.llegaron ? Math.min(100, Math.round((r.fit.abrieron / r.fit.llegaron) * 100)) : 0}% de quienes llegaron hasta ahí · ${fmtDur(r.fit.seg)} de lectura acumulada.</p>
     <h3>Documentos más abiertos</h3><ul class="clean">${r.docs.slice(0, 15).map(([n, c]) => `<li>${esc(n)} — ${c}</li>`).join("") || "<li>—</li>"}</ul>`;
   wireOut();
   $("#back").onclick = list;

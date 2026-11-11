@@ -90,9 +90,11 @@ function renderBody(txt) {
   }).join("");
 }
 
-function showSite(secciones) {
+function showSite(todas) {
   gate.hidden = true;
   site.hidden = false;
+  const fitData = todas.find((s) => s.id === "fit");
+  const secciones = todas.filter((s) => s.id !== "fit");
   $("#cards").innerHTML = secciones.map((s, i) => `
     <article class="card section" id="sec-${esc(s.id)}" data-id="${esc(s.id)}">
       <button class="sechead" aria-expanded="false">
@@ -116,7 +118,71 @@ function showSite(secciones) {
 
   initVideo();
   initMeeting();
-  DataRoom.init($("#dr-body"), store.get(LS_EMAIL) || "");
+  initFit(fitData);
+  initDataRoom();
+}
+
+/* ───────── ¿Calzamos? (acordeón accesible) ───────── */
+function initFit(d) {
+  const card = $(".fit"), btn = $("#fit-btn"), panel = $("#fit-panel");
+  if (!d) return ($("#fit").hidden = true);
+  const blocks = String(d.cuerpo).split("\n").filter((l) => l.startsWith("BLOQUE::")).map((l) => {
+    const [, label, ...rest] = l.split("::");
+    return `<div class="fitblock"><span class="lbl">${esc(label)}</span><p>${rest.join("::").split("||").map(esc).join("<br>")}</p></div>`;
+  }).join("");
+  panel.innerHTML = `<h3>${esc(d.titulo)}</h3><p class="muted">${esc(d.resumen)}</p><div class="fitgrid">${blocks}</div>
+    <a href="#reunion" id="fit-cta" class="fit-cta">Si calzamos, conversemos</a>`;
+
+  let openedAt = null, vis = false, since = null, visTotal = 0;
+  const stopVis = () => { if (since != null) { visTotal += (Date.now() - since) / 1000; since = null; } };
+  const flushVis = () => { stopVis(); if (visTotal >= 1) track("fit_visible_segundos", { duracion_segundos: Math.round(visTotal) }); visTotal = 0; };
+  const startVis = () => { if (openedAt && vis && !document.hidden && since == null) since = Date.now(); };
+
+  function set(open, silent) {
+    if (open === !panel.hidden) return;
+    panel.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+    $("#fit-hint-txt").textContent = open ? "Ver menos" : "Ver más";
+    if (open) { openedAt = Date.now(); if (!silent) track("fit_abierta", { seccion: "fit" }); startVis(); }
+    else if (openedAt) {
+      flushVis();
+      track("fit_cerrada", { seccion: "fit", duracion_segundos: Math.round((Date.now() - openedAt) / 1000) });
+      openedAt = null;
+    }
+  }
+  btn.addEventListener("click", () => set(panel.hidden));
+  $("#fit-cta", panel).addEventListener("click", (e) => {
+    track("fit_cta_click", { seccion: "fit" });
+    e.preventDefault();
+    $("#reunion").scrollIntoView({ behavior: "smooth" });
+  });
+  // tiempo con la sección visible mientras está abierta
+  new IntersectionObserver(([e]) => { vis = e.isIntersecting; if (vis) startVis(); else stopVis(); }, { threshold: 0.3 }).observe(card);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stopVis(); else startVis(); });
+  window.addEventListener("pagehide", () => { flushVis(); if (openedAt) { track("fit_cerrada", { seccion: "fit", duracion_segundos: Math.round((Date.now() - openedAt) / 1000) }); openedAt = null; } });
+  trackSection(card, "fit"); // llegó hasta la sección (seccion_vista · fit)
+  const openFromHash = () => { if (location.hash === "#fit") { set(true); card.scrollIntoView(); } };
+  openFromHash();
+  window.addEventListener("hashchange", openFromHash);
+}
+
+/* ───────── Data room en ventana emergente ───────── */
+function initDataRoom() {
+  const modal = $("#dr-modal"), link = $("#open-dr");
+  let started = false, lastFocus = null;
+  const open = () => {
+    lastFocus = document.activeElement;
+    modal.hidden = false;
+    document.body.style.overflow = "hidden";
+    if (!started) { started = true; DataRoom.init($("#dr-body"), store.get(LS_EMAIL) || ""); }
+    setTimeout(() => ($("input", modal) || $("#dr-close")).focus(), 50);
+  };
+  const close = () => { modal.hidden = true; document.body.style.overflow = ""; if (lastFocus) lastFocus.focus(); };
+  link.addEventListener("click", (e) => { e.preventDefault(); open(); });
+  $("#dr-close").addEventListener("click", close);
+  modal.addEventListener("mousedown", (e) => { if (e.target === modal) close(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !modal.hidden && !$(".modal")) close(); });
+  if (location.hash === "#dataroom") open();
 }
 
 /* seccion_vista: tiempo con ≥50% de la tarjeta visible y pestaña activa */

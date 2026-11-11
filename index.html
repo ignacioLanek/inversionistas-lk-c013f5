@@ -45,35 +45,27 @@
     <header class="nav">
       <a class="nav-brand" href="#top"><img src="assets/img/nav-logo.png" alt="Lanek" /><span>INVERSIONISTAS</span></a>
       <nav>
-        <a href="#secciones">Presentación</a>
-        <a href="#reunion">Reunión</a>
-        <a href="#dataroom" class="btn btn-sm">Data room</a>
+        <a href="#secciones" class="hide-sm">Deck</a>
+        <a href="#dataroom" id="open-dr">Data room</a>
+        <a href="#reunion" class="btn btn-sm">Agendar Reunión</a>
       </nav>
     </header>
 
     <section class="hero" id="top">
-      <div class="wrap hero-grid">
-        <div>
-          <img class="hero-logo" src="assets/img/logotipo-degrade.png" alt="Lanek" />
-          <h1>Salud más allá del Hospital</h1>
-          <p class="lead">Sistema Inteligente de Hospital en Casa: ayudamos a clínicas y hospitales a <b>atender más pacientes</b> sin construir camas.</p>
-        </div>
-        <div class="hero-photo"><img src="assets/img/hero-foto.jpg" alt="Paciente atendido en su hogar" /></div>
-      </div>
       <div class="wrap">
         <div id="video" class="video"></div>
       </div>
     </section>
 
     <section id="secciones" class="wrap">
-      <span class="chip">Presentación</span>
+      <span class="chip">Deck</span>
       <h2 class="h-lg">Conoce Lanek en seis pasos</h2>
       <div id="cards" class="cards"></div>
     </section>
 
     <section id="reunion" class="wrap">
       <div class="card cta">
-        <span class="chip">Siguiente paso</span>
+        <span class="chip">¿Quieres saber más?</span>
         <h2 class="h-lg">Conversemos</h2>
         <p class="muted">Agenda una reunión con nosotros o déjanos un mensaje directo.</p>
         <div id="cta-actions" class="row">
@@ -89,12 +81,16 @@
       </div>
     </section>
 
-    <section id="dataroom" class="wrap">
-      <div class="card dr">
-        <span class="chip">Acceso restringido</span>
-        <h2 class="h-lg">Data room</h2>
-        <div id="dr-body"><p class="muted">Cargando…</p></div>
-      </div>
+    <section id="fit" class="wrap">
+      <article class="card fit">
+        <h2 class="fit-h">
+          <button id="fit-btn" class="fithead" type="button" aria-expanded="false" aria-controls="fit-panel">
+            <span class="fit-title"><b>¿Es una inversión para ti?</b><small>Evalúa el calce con nuestra propuesta</small></span>
+            <span class="fit-hint"><span id="fit-hint-txt">Ver más</span><span class="chevron" aria-hidden="true"></span></span>
+          </button>
+        </h2>
+        <div id="fit-panel" class="fitbody" role="region" aria-labelledby="fit-btn" hidden></div>
+      </article>
     </section>
 
     <footer class="footer">
@@ -103,6 +99,16 @@
       <p>© <span id="year"></span> Lanek SpA. Información confidencial.</p>
       <p><a href="terminos.html">Términos y Condiciones</a> · <button id="btn-delete" class="linklike">Eliminar mis datos</button> · <a href="https://lanek.cl" target="_blank" rel="noopener">lanek.cl</a></p>
     </footer>
+  </div>
+
+  <!-- Data room: ventana emergente (solicitud de acceso por correo → código → documentos) -->
+  <div id="dr-modal" class="drmodal" role="dialog" aria-modal="true" aria-labelledby="dr-title" hidden>
+    <div class="drbox">
+      <button id="dr-close" class="drclose" type="button" aria-label="Cerrar">✕</button>
+      <span class="chip">Acceso restringido</span>
+      <h2 id="dr-title" class="h-lg">Data room</h2>
+      <div id="dr-body"><p class="muted">Cargando…</p></div>
+    </div>
   </div>
 
   <script src="assets/js/config.js"></script>
