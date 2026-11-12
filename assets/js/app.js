@@ -21,11 +21,24 @@ async function enter(email, extra = {}) {
   return r.email;
 }
 
+const cachedContent = () => { try { return JSON.parse(store.get("lk_content") || "null"); } catch { return null; } };
+
 async function boot() {
-  // 1) token vigente → entra directo
+  // 1) token vigente → entra directo. Si hay contenido en caché se muestra al instante y se refresca en segundo plano.
   if (siteToken()) {
+    const cached = cachedContent();
+    if (cached && cached.length) {
+      if (!store.get("lk_visit", true)) { store.set("lk_visit", "1", true); track("ingreso_recurrente"); }
+      showSite(cached);
+      api("contenido", { token: siteToken() }).then((r) => {
+        if (r && r.secciones) store.set("lk_content", JSON.stringify(r.secciones));
+        else if (r && r.auth) { store.del("lk_site"); store.del("lk_content"); location.reload(); }
+      }).catch(() => {});
+      return;
+    }
     const r = await api("contenido", { token: siteToken() }).catch(() => null);
     if (r && r.secciones) {
+      store.set("lk_content", JSON.stringify(r.secciones));
       if (!store.get("lk_visit", true)) { store.set("lk_visit", "1", true); track("ingreso_recurrente"); }
       return showSite(r.secciones);
     }
@@ -158,8 +171,8 @@ function initFit(d) {
   });
   // tiempo con la sección visible mientras está abierta
   new IntersectionObserver(([e]) => { vis = e.isIntersecting; if (vis) startVis(); else stopVis(); }, { threshold: 0.3 }).observe(card);
-  document.addEventListener("visibilitychange", () => { if (document.hidden) stopVis(); else startVis(); });
-  window.addEventListener("pagehide", () => { flushVis(); if (openedAt) { track("fit_cerrada", { seccion: "fit", duracion_segundos: Math.round((Date.now() - openedAt) / 1000) }); openedAt = null; } });
+  onHide(() => { flushVis(); if (openedAt) { track("fit_cerrada", { seccion: "fit", duracion_segundos: Math.round((Date.now() - openedAt) / 1000) }); openedAt = null; } });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) startVis(); });
   trackSection(card, "fit"); // llegó hasta la sección (seccion_vista · fit)
   const openFromHash = () => { if (location.hash === "#fit") { set(true); card.scrollIntoView(); } };
   openFromHash();
@@ -170,11 +183,13 @@ function initFit(d) {
 function initDataRoom() {
   const modal = $("#dr-modal"), link = $("#open-dr");
   let started = false, lastFocus = null;
+  const goPage = () => (location.href = "dataroom.html");
   const open = () => {
+    if (store.get("lk_dr", true)) return goPage(); // ya tiene sesión de data room → directo a la página
     lastFocus = document.activeElement;
     modal.hidden = false;
     document.body.style.overflow = "hidden";
-    if (!started) { started = true; DataRoom.init($("#dr-body"), store.get(LS_EMAIL) || ""); }
+    if (!started) { started = true; DataRoom.init($("#dr-body"), store.get(LS_EMAIL) || "", { onAuthed: goPage }); }
     setTimeout(() => ($("input", modal) || $("#dr-close")).focus(), 50);
   };
   const close = () => { modal.hidden = true; document.body.style.overflow = ""; if (lastFocus) lastFocus.focus(); };
@@ -194,8 +209,8 @@ function trackSection(el, id) {
     visible = e.isIntersecting;
     if (visible && !document.hidden) since = Date.now(); else flush();
   }, { threshold: 0.5 }).observe(el);
-  document.addEventListener("visibilitychange", () => { if (document.hidden) flush(); else if (visible) since = Date.now(); });
-  window.addEventListener("pagehide", flush);
+  onHide(flush);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && visible) since = Date.now(); });
 }
 
 /* ───────── Video YouTube (autoplay mudo + subtítulos) ───────── */

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="es-CL">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#1170ee" />
+  <title>Data room · Lanek</title>
+  <link rel="icon" href="assets/img/nav-logo.png" />
+  <link rel="preconnect" href="https://script.google.com" />
+  <link rel="preconnect" href="https://script.googleusercontent.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header class="nav">
+    <a class="nav-brand" href="index.html"><img src="assets/img/nav-logo.png" alt="Lanek" /><span>INVERSIONISTAS</span></a>
+    <nav>
+      <a href="index.html">← Volver al sitio</a>
+      <button id="dr-out" class="pill" type="button">Cerrar sesión</button>
+    </nav>
+  </header>
+
+  <main class="wrap drpage">
+    <span class="chip">Acceso restringido</span>
+    <h1>Data room</h1>
+    <div class="card"><div id="dr-body"><p class="muted">Cargando…</p></div></div>
+  </main>
+
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/dataroom.js"></script>
+  <script>
+    // Sin sesión de data room vigente → vuelve al sitio, donde se solicita el acceso (ventana emergente con correo y código)
+    DataRoom.init($("#dr-body"), store.get("lanek_email") || "", { onNoAuth: () => location.replace("index.html#dataroom") });
+    $("#dr-out").addEventListener("click", () => { store.del("lk_dr", true); location.href = "index.html"; });
+  </script>
+</body>
+</html>

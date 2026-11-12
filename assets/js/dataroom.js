@@ -1,18 +1,20 @@
 /* Flujo 3: data room (OTP por correo + navegador de Drive + visor PDF sin descarga directa) */
 const DataRoom = (() => {
-  let root, email = "";
+  let root, email = "", opts = {};
   const drToken = () => store.get("lk_dr", true);
   const post = (a, d) => api(a, { token: drToken(), ...d });
 
   function view(html) { root.innerHTML = html; }
 
-  async function init(el, defaultEmail) {
-    root = el; email = defaultEmail;
+  const authed = () => (opts.onAuthed ? opts.onAuthed() : browser());
+  async function init(el, defaultEmail, options = {}) {
+    root = el; email = defaultEmail; opts = options;
     if (drToken()) {
       const s = await api("dr_session", { token: drToken() }).catch(() => ({}));
-      if (s.authed) return browser();
+      if (s.authed) return authed();
       store.del("lk_dr", true);
     }
+    if (opts.onNoAuth) return opts.onNoAuth();
     stepEmail();
   }
 
@@ -55,13 +57,13 @@ const DataRoom = (() => {
       const r = await api("dr_otp_verify", { email, code: $("#o", root).value });
       if (r.error) return ($("#er", root).textContent = r.error);
       store.set("lk_dr", r.token, true);
-      browser();
+      authed();
     };
   }
 
   /* ── navegador ── */
   let folder = "", q = "", timer;
-  function expired() { store.del("lk_dr", true); stepEmail("Tu sesión expiró. Solicita un nuevo código."); }
+  function expired() { store.del("lk_dr", true); if (opts.onNoAuth) return opts.onNoAuth(); stepEmail("Tu sesión expiró. Solicita un nuevo código."); }
 
   function browser() {
     view(`<input type="search" id="q" class="search" placeholder="Buscar documentos…" />

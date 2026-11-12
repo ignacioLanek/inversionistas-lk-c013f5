@@ -168,7 +168,20 @@ function registrar(email, tipo, o) {
   try { notificar(email, tipo, o.seccion); } catch (e) { console.error(e); }
   return id;
 }
+const NOTIFICA = ['solicitud_acceso_sitio', 'solicitud_acceso_dataroom', 'primer_ingreso', 'reunion_agendada', 'dataroom_ingreso', 'documento_abierto', 'fit_abierta'];
+/** Registra varios eventos de un mismo usuario con UNA escritura y un solo candado (seguimiento por lotes). */
+function registrarVarios(email, lista) {
+  if (!lista.length) return 0;
+  withLock(() => {
+    const sh = db('eventos'), start = sh.getLastRow() + 1, ts = nowIso();
+    const rows = lista.map((o, i) => [start + i, email, o.tipo, o.seccion || '', o.duracion != null ? Math.max(0, Math.min(Math.round(o.duracion), 14400)) : '', ts]);
+    sh.getRange(start, 1, rows.length, 6).setValues(rows);
+  });
+  lista.forEach((o) => { try { notificar(email, o.tipo, o.seccion); } catch (e) { console.error(e); } });
+  return lista.length;
+}
 function notificar(email, tipo, seccion) {
+  if (NOTIFICA.indexOf(tipo) < 0) return; // evita leer la hoja en cada evento de seguimiento
   const c = getContacto(email) || {};
   const quien = (c.nombre || '(sin nombre)') + (c.empresa ? ' · ' + c.empresa : '') + ' <' + email + '>';
   if (tipo === 'solicitud_acceso_sitio') gchat('🆕 *Nueva solicitud de acceso al sitio*\n' + quien + (c.origen ? '\nOrigen: ' + c.origen : ''));
@@ -221,12 +234,26 @@ const ROUTES = {
     registrar(email, hasEvent(email, 'primer_ingreso') ? 'ingreso_recurrente' : 'primer_ingreso');
     return { ok: true, token: signToken('site', email, SITE_TTL), email: email };
   },
-  contenido: (b) => { need(b.token, 'site'); return { secciones: readAll('contenido').map((r) => ({ id: r.id, titulo: r.titulo, resumen: r.resumen, cuerpo: String(r.cuerpo) })) }; },
+  contenido: (b) => {
+    need(b.token, 'site');
+    const cache = CacheService.getScriptCache(), hit = cache.get('contenido_v1');
+    if (hit) return { secciones: JSON.parse(hit) };
+    const secciones = readAll('contenido').map((r) => ({ id: r.id, titulo: r.titulo, resumen: r.resumen, cuerpo: String(r.cuerpo) }));
+    try { cache.put('contenido_v1', JSON.stringify(secciones), 300); } catch (e) {}
+    return { secciones: secciones };
+  },
   track: (b) => {
     const email = need(b.token, 'site');
     if (CLIENT_EVENTS.indexOf(b.tipo_evento) < 0) return { error: 'Evento no permitido' };
     const id = registrar(email, b.tipo_evento, { seccion: clean(b.seccion, 200), duracion: typeof b.duracion_segundos === 'number' ? b.duracion_segundos : undefined, dedupeMin: b.tipo_evento === 'reunion_agendada' ? 10 : 0 });
     return { id: id };
+  },
+  track_batch: (b) => {
+    const email = need(b.token, 'site');
+    const lista = (Array.isArray(b.events) ? b.events : []).slice(0, 60)
+      .filter((e) => e && CLIENT_EVENTS.indexOf(e.tipo_evento) >= 0 && e.tipo_evento !== 'reunion_agendada')
+      .map((e) => ({ tipo: e.tipo_evento, seccion: clean(e.seccion, 200), duracion: typeof e.duracion_segundos === 'number' ? e.duracion_segundos : undefined }));
+    return { ok: true, n: registrarVarios(email, lista) };
   },
   track_dur: (b) => {
     const email = (readToken(b.token, 'dr') || readToken(b.token, 'site'));
