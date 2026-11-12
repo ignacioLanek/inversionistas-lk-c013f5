@@ -182,6 +182,7 @@ function registrarVarios(email, lista) {
 }
 function notificar(email, tipo, seccion) {
   if (NOTIFICA.indexOf(tipo) < 0) return; // evita leer la hoja en cada evento de seguimiento
+  if (tipo === 'documento_abierto' && !(seccion && isSensitive(seccion))) return;
   const c = getContacto(email) || {};
   const quien = (c.nombre || '(sin nombre)') + (c.empresa ? ' · ' + c.empresa : '') + ' <' + email + '>';
   if (tipo === 'solicitud_acceso_sitio') gchat('🆕 *Nueva solicitud de acceso al sitio*\n' + quien + (c.origen ? '\nOrigen: ' + c.origen : ''));
@@ -317,47 +318,31 @@ const ROUTES = {
     return { ok: true, token: signToken('dr', email, DR_TTL) };
   },
   dr_session: (b) => { try { return { authed: !!needDr(b.token) }; } catch (e) { return { authed: false }; } },
-  dr_list: (b) => {
+  /** Árbol completo del data room en una sola llamada: el navegador navega y busca localmente (sin esperas por carpeta). */
+  dr_tree: (b) => {
     needDr(b.token);
-    const rootId = rootFolder().getId();
-    if (clean(b.q, 100).length >= 2) {
-      const q = clean(b.q, 100).toLowerCase();
-      return { items: driveIndex().filter((n) => n.name.toLowerCase().indexOf(q) >= 0).slice(0, 100), breadcrumb: [] };
-    }
-    const folder = b.folder ? DriveApp.getFolderById(b.folder) : rootFolder();
-    if (!insideRoot(folder)) throw new Error('AUTH');
-    const items = [];
-    const fs = folder.getFolders();
-    while (fs.hasNext()) { const f = fs.next(); items.push({ id: f.getId(), name: f.getName(), isFolder: true, mime: 'folder' }); }
-    const fl = folder.getFiles();
-    while (fl.hasNext()) { const f = fl.next(); items.push({ id: f.getId(), name: f.getName(), isFolder: false, mime: f.getMimeType(), size: f.getSize(), modified: f.getLastUpdated().toISOString() }); }
-    items.sort((a, c) => (c.isFolder - a.isFolder) || a.name.localeCompare(c.name, 'es', { numeric: true }));
-    const crumbs = [];
-    let cur = folder;
-    for (let i = 0; i < 12; i++) {
-      crumbs.unshift({ id: cur.getId(), name: cur.getId() === rootId ? 'Data room' : cur.getName() });
-      if (cur.getId() === rootId) break;
-      cur = cur.getParents().next();
-    }
-    return { items: items, breadcrumb: crumbs };
+    const idx = b.refresh === true ? buildIndex() : driveIndex();
+    return { rootId: idx.rootId, items: idx.items.map((n) => ({ id: n.id, name: n.name, isFolder: n.isFolder, mime: n.mime, size: n.size || 0, parent: n.parent, path: n.path })) };
   },
   /** Entrega el archivo (base64) solo si la sesión es válida y el archivo está dentro del data room. */
   dr_open: (b) => {
     const email = needDr(b.token);
-    const file = DriveApp.getFileById(String(b.id));
-    if (!insideRoot(file)) throw new Error('AUTH');
-    const mime = file.getMimeType();
+    const id = String(b.id), node = driveIndex().items.filter((n) => n.id === id && !n.isFolder)[0];
+    const file = DriveApp.getFileById(id);
+    let ruta;
+    if (node) ruta = (node.path ? node.path + ' / ' : '') + node.name;
+    else { if (!insideRoot(file)) throw new Error('AUTH'); ruta = pathOf(file); buildIndex(); } // archivo nuevo aún no indexado
+    const mime = node ? node.mime : file.getMimeType();
     const native = mime.indexOf('application/vnd.google-apps') === 0;
     const blob = native ? file.getAs('application/pdf') : file.getBlob();
     const bytes = blob.getBytes();
     if (bytes.length > MAX_FILE_BYTES) return { error: 'Archivo demasiado grande para vista previa. Pide el enlace al equipo.' };
-    const ruta = pathOf(file);
     const dl = b.mode === 'download';
     let eventoId = null;
     if (dl) registrar(email, 'documento_descargado', { seccion: ruta });
     else eventoId = registrar(email, 'documento_abierto', { seccion: ruta });
     const outMime = native ? 'application/pdf' : mime;
-    return { name: file.getName() + (native ? '.pdf' : ''), mime: outMime, data: Utilities.base64Encode(bytes), eventoId: eventoId };
+    return { name: (node ? node.name : file.getName()) + (native ? '.pdf' : ''), mime: outMime, data: Utilities.base64Encode(bytes), eventoId: eventoId };
   },
 
   /* ── admin ── */
@@ -477,28 +462,34 @@ function pathOf(item) {
   }
   return names.join(' / ');
 }
-/** Índice plano de todo el data room (para el buscador), cacheado 10 min. */
-function driveIndex() {
-  const cache = CacheService.getScriptCache(), n = Number(cache.get('idx_n') || 0);
-  if (n) {
-    const parts = [];
-    for (let i = 0; i < n; i++) parts.push(cache.get('idx_' + i));
-    if (parts.every((p) => p)) return JSON.parse(parts.join(''));
-  }
-  const out = [];
+/** Índice plano del data room (id, nombre, carpeta padre, ruta, tamaño). Cacheado 6 h y reconstruido cada hora por trigger. */
+const IDX_TTL = 21600;
+function buildIndex() {
+  const rootId = rootFolder().getId(), out = [];
   (function walk(folder, path) {
+    const pid = folder.getId();
     const fs = folder.getFolders();
-    while (fs.hasNext()) { const f = fs.next(); out.push({ id: f.getId(), name: f.getName(), isFolder: true, mime: 'folder', path: path }); walk(f, path ? path + ' / ' + f.getName() : f.getName()); }
+    while (fs.hasNext()) { const f = fs.next(); out.push({ id: f.getId(), name: f.getName(), isFolder: true, mime: 'folder', path: path, parent: pid }); walk(f, path ? path + ' / ' + f.getName() : f.getName()); }
     const fl = folder.getFiles();
-    while (fl.hasNext()) { const f = fl.next(); out.push({ id: f.getId(), name: f.getName(), isFolder: false, mime: f.getMimeType(), size: f.getSize(), path: path }); }
+    while (fl.hasNext()) { const f = fl.next(); out.push({ id: f.getId(), name: f.getName(), isFolder: false, mime: f.getMimeType(), size: f.getSize(), path: path, parent: pid }); }
   })(rootFolder(), '');
-  const s = JSON.stringify(out), size = 90000, chunks = Math.ceil(s.length / size);
+  const cache = CacheService.getScriptCache(), str = JSON.stringify({ rootId: rootId, items: out }), size = 90000, chunks = Math.ceil(str.length / size);
   if (chunks <= 40) {
-    for (let i = 0; i < chunks; i++) cache.put('idx_' + i, s.substr(i * size, size), 600);
-    cache.put('idx_n', String(chunks), 600);
+    for (let k = 0; k < chunks; k++) cache.put('idx2_' + k, str.substr(k * size, size), IDX_TTL);
+    cache.put('idx2_n', String(chunks), IDX_TTL);
   }
-  return out;
+  return { rootId: rootId, items: out };
 }
+function driveIndex() {
+  const cache = CacheService.getScriptCache(), n = Number(cache.get('idx2_n') || 0);
+  if (n) {
+    const keys = []; for (let k = 0; k < n; k++) keys.push('idx2_' + k);
+    const got = cache.getAll(keys), parts = keys.map((k) => got[k]);
+    if (parts.every((x) => x)) return JSON.parse(parts.join(''));
+  }
+  return buildIndex();
+}
+function reconstruirIndice() { buildIndex(); }
 
 /* ───────────── triggers ───────────── */
 function resumenDiario() {
@@ -549,6 +540,7 @@ function instalarTriggers() {
   ScriptApp.getProjectTriggers().forEach((t) => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('resumenDiario').timeBased().atHour(Number(prop('SUMMARY_HOUR', '18'))).everyDays(1).create();
   ScriptApp.newTrigger('revisarReuniones').timeBased().everyMinutes(10).create();
+  ScriptApp.newTrigger('reconstruirIndice').timeBased().everyHours(1).create(); // mantiene tibio el índice del data room
 }
 /** Carga el contenido inicial de las secciones. Con overwrite=true reemplaza lo existente. */
 function seedContenido(overwrite) {

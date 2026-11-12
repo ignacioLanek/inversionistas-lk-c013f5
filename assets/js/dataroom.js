@@ -9,11 +9,7 @@ const DataRoom = (() => {
   const authed = () => (opts.onAuthed ? opts.onAuthed() : browser());
   async function init(el, defaultEmail, options = {}) {
     root = el; email = defaultEmail; opts = options;
-    if (drToken()) {
-      const s = await api("dr_session", { token: drToken() }).catch(() => ({}));
-      if (s.authed) return authed();
-      store.del("lk_dr", true);
-    }
+    if (drToken()) return authed(); // la validez se comprueba en la primera llamada real (evita un viaje extra de ~2 s)
     if (opts.onNoAuth) return opts.onNoAuth();
     stepEmail();
   }
@@ -61,34 +57,56 @@ const DataRoom = (() => {
     };
   }
 
-  /* ── navegador ── */
-  let folder = "", q = "", timer;
+  /* ── navegador: el árbol completo llega en UNA llamada y se navega/busca localmente ── */
+  let tree = null, rootId = "", byParent = {}, byId = {}, folder = "", q = "", timer;
   function expired() { store.del("lk_dr", true); if (opts.onNoAuth) return opts.onNoAuth(); stepEmail("Tu sesión expiró. Solicita un nuevo código."); }
 
   function browser() {
-    view(`<input type="search" id="q" class="search" placeholder="Buscar documentos…" />
+    view(`<div class="row" style="justify-content:space-between;align-items:center;gap:.6rem"><input type="search" id="q" class="search" placeholder="Buscar documentos…" style="flex:1;margin:0" />
+      <button type="button" id="rf" class="pill" title="Volver a leer Drive">Actualizar</button></div>
       <nav id="crumbs" class="crumbs"></nav><p id="er" class="err"></p><ul id="files" class="files"></ul>`);
-    $("#q", root).oninput = (e) => { q = e.target.value; clearTimeout(timer); timer = setTimeout(load, 300); };
+    $("#q", root).oninput = (e) => { q = e.target.value; clearTimeout(timer); timer = setTimeout(render, 120); };
+    $("#rf", root).onclick = () => loadTree(true);
     folder = ""; q = "";
-    load();
+    loadPdfJs().catch(() => {}); // precarga el visor mientras el usuario navega
+    loadTree(false);
   }
 
-  async function load() {
+  async function loadTree(refresh) {
     const list = $("#files", root);
     list.innerHTML = '<li class="muted">Cargando…</li>';
-    const r = await post("dr_list", { folder, q: q.trim().length >= 2 ? q.trim() : "" }).catch(() => ({ error: "Error de conexión" }));
+    const r = await post("dr_tree", { refresh: !!refresh }).catch(() => ({ error: "Error de conexión" }));
     if (r.auth) return expired();
     if (r.error) return ($("#er", root).textContent = r.error);
-    $("#crumbs", root).innerHTML = (r.breadcrumb || []).map((c, i) => `${i ? " / " : ""}<button class="linklike" data-id="${i ? esc(c.id) : ""}">${esc(c.name)}</button>`).join("");
-    $("#crumbs", root).querySelectorAll("button").forEach((b) => (b.onclick = () => { folder = b.dataset.id; $("#q", root).value = ""; q = ""; load(); }));
-    list.innerHTML = r.items.length ? r.items.map((it) => `
+    tree = r.items; rootId = r.rootId; byParent = {}; byId = {};
+    tree.forEach((n) => { byId[n.id] = n; (byParent[n.parent] = byParent[n.parent] || []).push(n); });
+    render();
+  }
+
+  const sortItems = (a) => a.slice().sort((x, y) => (y.isFolder - x.isFolder) || x.name.localeCompare(y.name, "es", { numeric: true }));
+  function render() {
+    if (!tree) return;
+    const list = $("#files", root), term = q.trim().toLowerCase();
+    const cur = folder || rootId;
+    const crumbs = [];
+    for (let id = cur, n = 0; id && n < 15; n++) {
+      if (id === rootId) { crumbs.unshift({ id: "", name: "Data room" }); break; }
+      const f = byId[id]; if (!f) break;
+      crumbs.unshift({ id, name: f.name }); id = f.parent;
+    }
+    const items = term.length >= 2
+      ? sortItems(tree.filter((n) => n.name.toLowerCase().includes(term))).slice(0, 100)
+      : sortItems(byParent[cur] || []);
+    $("#crumbs", root).innerHTML = term.length >= 2 ? "" : crumbs.map((c, i) => `${i ? " / " : ""}<button class="linklike" data-id="${esc(c.id)}">${esc(c.name)}</button>`).join("");
+    $("#crumbs", root).querySelectorAll("button").forEach((b) => (b.onclick = () => { folder = b.dataset.id; render(); }));
+    list.innerHTML = items.length ? items.map((it) => `
       <li><button data-id="${esc(it.id)}" data-folder="${it.isFolder}">
         <span class="ico">${it.isFolder ? "📁" : it.mime === "application/pdf" ? "📄" : "📎"}</span>
-        <span class="fname">${esc(it.name)}${it.path ? `<small>${esc(it.path)}</small>` : ""}</span>
+        <span class="fname">${esc(it.name)}${term.length >= 2 && it.path ? `<small>${esc(it.path)}</small>` : ""}</span>
         <span class="muted">${it.size ? (it.size > 1e6 ? (it.size / 1e6).toFixed(1) + " MB" : Math.max(1, Math.round(it.size / 1e3)) + " KB") : ""}</span>
       </button></li>`).join("") : '<li class="muted">Sin resultados</li>';
     list.querySelectorAll("button").forEach((b) => (b.onclick = () => {
-      if (b.dataset.folder === "true") { folder = b.dataset.id; $("#q", root).value = ""; q = ""; load(); }
+      if (b.dataset.folder === "true") { folder = b.dataset.id; $("#q", root).value = ""; q = ""; render(); }
       else openDoc(b.dataset.id);
     }));
   }

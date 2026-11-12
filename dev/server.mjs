@@ -70,7 +70,7 @@ const sandbox = {
   SpreadsheetApp: { getActiveSpreadsheet: () => ss, openById: () => ss },
   PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => propsStore[k] ?? null, setProperty: (k, v) => (propsStore[k] = v) }) },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
-  CacheService: { getScriptCache: () => ({ get: (k) => cacheStore.get(k) ?? null, put: (k, v) => cacheStore.set(k, v), remove: (k) => cacheStore.delete(k) }) },
+  CacheService: { getScriptCache: () => ({ get: (k) => cacheStore.get(k) ?? null, put: (k, v) => cacheStore.set(k, v), remove: (k) => cacheStore.delete(k), getAll: (ks) => Object.fromEntries(ks.map((k) => [k, cacheStore.get(k) ?? null])) }) },
   Utilities: {
     getUuid: () => crypto.randomUUID(),
     base64EncodeWebSafe: (x) => (typeof x === "string" ? Buffer.from(x) : Buffer.from(x)).toString("base64").replace(/\+/g, "-").replace(/\//g, "_"),
@@ -85,7 +85,7 @@ const sandbox = {
   UrlFetchApp: { fetch: (u, o) => console.log("[gchat]", JSON.parse(o.payload).text.replace(/\n/g, " | ")) },
   ContentService: { MimeType: { JSON: "json" }, createTextOutput: (t) => ({ t, setMimeType() { return this; } }) },
   DriveApp: { getFolderById: (id) => asFolder(FT[id]), getFileById: (id) => asFile(FT[id]) },
-  ScriptApp: { getProjectTriggers: () => [], deleteTrigger() {}, newTrigger: () => { const t = { timeBased: () => t, atHour: () => t, everyDays: () => t, everyMinutes: () => t, create() {} }; return t; } },
+  ScriptApp: { getProjectTriggers: () => [], deleteTrigger() {}, newTrigger: () => { const t = { timeBased: () => t, atHour: () => t, everyDays: () => t, everyMinutes: () => t, everyHours: () => t, create() {} }; return t; } },
   CalendarApp: { getDefaultCalendar: () => ({ getEvents: () => [] }) },
   Session: { getEffectiveUser: () => ({ getEmail: () => "owner@lanek.cl" }) },
   Logger: { log: console.log },
