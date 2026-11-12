@@ -46,7 +46,9 @@ function append(name, obj) {
   const sh = db(name);
   const row = COLS[name].map((c) => (obj[c] === undefined ? '' : obj[c]));
   sh.appendRow(row);
-  return sh.getLastRow();
+  const last = sh.getLastRow();
+  if (name === 'contactos') sh.getRange(last, 4, 1, 2).insertCheckboxes(); // casillas solo en filas con datos (evita ~1000 filas "vacías")
+  return last;
 }
 function setCell(name, row, col, val) {
   db(name).getRange(row, COLS[name].indexOf(col) + 1).setValue(val);
@@ -480,13 +482,14 @@ function resumenDiario() {
 /** Detecta reservas nuevas de la página de citas de Google Calendar y las registra como reunion_agendada. */
 function revisarReuniones() {
   const last = Number(prop('LAST_CAL_CHECK', String(Date.now() - 3600000)));
-  const me = normEmail(Session.getEffectiveUser().getEmail());
+  const me = normEmail(Session.getEffectiveUser().getEmail()), filtro = prop('CAL_TITLE_FILTER').toLowerCase();
   CalendarApp.getDefaultCalendar().getEvents(new Date(Date.now() - 86400000), new Date(Date.now() + 120 * 86400000)).forEach((ev) => {
     if (ev.getDateCreated().getTime() <= last) return;
     ev.getGuestList().forEach((g) => {
       const email = normEmail(g.getEmail());
       if (!validEmail(email) || email === me) return;
-      if (!getContacto(email)) upsertContacto(email, { nombre: g.getName() || '' });
+      if (filtro && ev.getTitle().toLowerCase().indexOf(filtro) < 0) return; // opcional: propiedad CAL_TITLE_FILTER (título de tu página de citas)
+      if (!getContacto(email)) return; // solo prospectos que ya ingresaron al sitio; nunca crea contactos desde el calendario
       registrar(email, 'reunion_agendada', { dedupeMin: 10 });
     });
   });
@@ -502,7 +505,7 @@ function setup() {
     sh.getRange(2, 1, 1000, cols.length).setNumberFormat('@'); // texto plano: evita que Sheets convierta fechas/códigos
   });
   const ct = db('contactos');
-  ct.getRange(2, 4, 1000, 2).setNumberFormat('General').insertCheckboxes(); // acceso_sitio y acceso_dataroom como casillas
+  ct.getRange(2, 4, 1000, 2).setNumberFormat('General'); // acceso_sitio y acceso_dataroom: las casillas se agregan al crear cada contacto
   seedContenido(false);
   asegurarFit();
   secret();
