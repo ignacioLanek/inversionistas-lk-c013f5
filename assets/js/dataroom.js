@@ -21,7 +21,7 @@ const DataRoom = (() => {
     $("#f", root).onsubmit = async (ev) => {
       ev.preventDefault();
       email = $("#e", root).value.trim().toLowerCase();
-      const btn = $("button", root); btn.disabled = true;
+      setBusy($("button", root), true, "Enviando código…");
       const r = await api("dr_otp_send", { email }).catch(() => ({ error: "Error de conexión" }));
       if (r.error) return stepEmail(r.error);
       if (r.status === "sent") return stepOtp(r.devCode);
@@ -35,7 +35,9 @@ const DataRoom = (() => {
       <p class="err" id="er"></p><button class="btn">Solicitar acceso</button></form>`);
     $("#f", root).onsubmit = async (ev) => {
       ev.preventDefault();
-      const r = await api("dr_request", { email, nombre: $("#n", root).value, empresa: $("#c", root).value });
+      setBusy($("button", root), true, "Enviando…");
+      const r = await api("dr_request", { email, nombre: $("#n", root).value, empresa: $("#c", root).value }).catch(() => ({ error: "Error de conexión" }));
+      setBusy($("button", root), false);
       r.error ? ($("#er", root).textContent = r.error) : view("<p>Tu solicitud está registrada. Un administrador la revisará y te avisaremos cuando esté aprobada.</p>");
     };
   }
@@ -50,9 +52,11 @@ const DataRoom = (() => {
     $("#re", root).onclick = () => stepEmail();
     $("#f", root).onsubmit = async (ev) => {
       ev.preventDefault();
-      const r = await api("dr_otp_verify", { email, code: $("#o", root).value });
-      if (r.error) return ($("#er", root).textContent = r.error);
+      setBusy($("button", root), true, "Verificando…");
+      const r = await api("dr_otp_verify", { email, code: $("#o", root).value }).catch(() => ({ error: "Error de conexión" }));
+      if (r.error) { setBusy($("button", root), false); return ($("#er", root).textContent = r.error); }
       store.set("lk_dr", r.token, true);
+      view(loaderHTML("Entrando al data room…"));
       authed();
     };
   }
@@ -74,10 +78,13 @@ const DataRoom = (() => {
 
   async function loadTree(refresh) {
     const list = $("#files", root);
-    list.innerHTML = '<li class="muted">Cargando…</li>';
+    list.innerHTML = `<li>${loaderHTML(refresh ? "Actualizando documentos…" : "Cargando documentos…")}</li>`;
+    const stop = slowHint(list);
     const r = await post("dr_tree", { refresh: !!refresh }).catch(() => ({ error: "Error de conexión" }));
+    stop();
     if (r.auth) return expired();
-    if (r.error) return ($("#er", root).textContent = r.error);
+    if (r.error) { list.innerHTML = ""; return ($("#er", root).textContent = r.error); }
+    $("#er", root).textContent = "";
     tree = r.items; rootId = r.rootId; byParent = {}; byId = {};
     tree.forEach((n) => { byId[n.id] = n; (byParent[n.parent] = byParent[n.parent] || []).push(n); });
     render();
@@ -112,7 +119,40 @@ const DataRoom = (() => {
   }
 
   /* ── visor ── */
-  const b64ToBytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const b64ToBytes = (b64) => { const s = atob(b64), n = s.length, u = new Uint8Array(n); for (let i = 0; i < n; i++) u[i] = s.charCodeAt(i); return u; };
+  const CHUNK = 700000; // debe coincidir con DR_CHUNK del servidor
+  /* Trae el archivo. Si es grande, lo pide en tramos paralelos (mucho más rápido que un único bloque) y informa el avance. */
+  async function fetchDoc(id, mode, onProgress) {
+    const it = byId[id], size = it ? it.size : 0, native = it && it.mime.indexOf("application/vnd.google-apps") === 0;
+    const whole = async () => { const r = await post("dr_open", { id, mode }); if (r.data) r.bytes = b64ToBytes(r.data); return r; };
+    if (native || !size || size <= CHUNK) return whole();
+    const n = Math.ceil(size / CHUNK), parts = new Array(n);
+    let next = 0, done = 0, fail = null, meta = null;
+    const one = async (i) => {
+      for (let k = 0; k < 3; k++) {
+        const r = await post("dr_open", { id, mode, part: i }).catch(() => ({ error: "Error de conexión" }));
+        if (r.auth || (r.error && r.error !== "Error de conexión")) return r;
+        if (!r.error) return r;
+      }
+      return { error: "Error de conexión" };
+    };
+    const worker = async () => {
+      while (!fail) {
+        const i = next++; if (i >= n) return;
+        const r = await one(i);
+        if (r.auth || r.error) { fail = r; return; }
+        parts[i] = b64ToBytes(r.data); if (i === 0) meta = r;
+        onProgress && onProgress(++done, n);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(12, n) }, worker));
+    if (fail) return fail;
+    const total = parts.reduce((a, p) => a + p.length, 0);
+    if (meta.total && meta.total !== total) return whole(); // el archivo cambió desde el último índice
+    const bytes = new Uint8Array(total); let o = 0;
+    parts.forEach((p) => { bytes.set(p, o); o += p.length; });
+    return { name: meta.name, mime: meta.mime, eventoId: meta.eventoId, bytes };
+  }
   let pdfjsReady;
   function loadPdfJs() {
     pdfjsReady = pdfjsReady || new Promise((ok, ko) => {
@@ -128,7 +168,7 @@ const DataRoom = (() => {
   async function openDoc(id) {
     const modal = document.createElement("div");
     modal.className = "modal";
-    modal.innerHTML = '<div class="modalbar"><b>Cargando…</b><span><button class="pill" id="dl" disabled>Descargar</button><button class="pill" id="cl">Cerrar ✕</button></span></div><div class="viewer" id="vw"><p class="muted center-msg">Cargando documento…</p></div>';
+    modal.innerHTML = '<div class="modalbar"><b>Abriendo documento…</b><span><span class="stat" id="st"></span> <button class="pill" id="dl" disabled>Descargar</button><button class="pill" id="cl">Cerrar ✕</button></span></div><div class="viewer" id="vw"><div class="center-msg" id="ld">' + loaderHTML("Descargando documento…", true) + '</div></div>';
     document.body.appendChild(modal);
     document.body.style.overflow = "hidden";
     const t0 = Date.now();
@@ -142,31 +182,38 @@ const DataRoom = (() => {
     $("#cl", modal).onclick = close;
     window.addEventListener("pagehide", close);
 
-    const r = await post("dr_open", { id }).catch(() => ({ error: "Error de conexión" }));
+    const ld = $("#ld", modal), stopHint = slowHint(ld, 8000), small = !(byId[id] && byId[id].size > CHUNK);
+    if (small) ld.querySelector(".bar").classList.remove("det");
+    const r = await fetchDoc(id, "view", (d, n) => setProgress(ld, (d / n) * 100, `Descargando documento… ${Math.round((d / n) * 100)} %`)).catch(() => ({ error: "Error de conexión" }));
+    stopHint();
     if (r.auth) { close(); return expired(); }
     const vw = $("#vw", modal);
     if (r.error) { vw.innerHTML = `<p class="err center-msg">${esc(r.error)}</p>`; return; }
     eventoId = r.eventoId;
     $("b", modal).textContent = r.name;
-    const bytes = b64ToBytes(r.data);
+    const bytes = r.bytes;
     blobUrl = URL.createObjectURL(new Blob([bytes], { type: r.mime }));
     doc = { name: r.name, mime: r.mime };
 
     $("#dl", modal).disabled = false;
     $("#dl", modal).onclick = async () => {
-      const d = await post("dr_open", { id, mode: "download" });
+      const btn = $("#dl", modal); setBusy(btn, true, "Descargando…");
+      const d = await fetchDoc(id, "download").catch(() => ({ error: "Error de conexión" }));
+      setBusy(btn, false);
       if (d.error) return alert(d.error);
-      const u = URL.createObjectURL(new Blob([b64ToBytes(d.data)], { type: d.mime }));
+      const u = URL.createObjectURL(new Blob([d.bytes], { type: d.mime }));
       const a = Object.assign(document.createElement("a"), { href: u, download: d.name });
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 5000);
     };
 
     if (r.mime === "application/pdf") {
       try {
+        vw.innerHTML = '<div class="center-msg">' + loaderHTML("Preparando documento…") + "</div>";
         await loadPdfJs();
         const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
         vw.innerHTML = "";
-        const w = Math.min(vw.clientWidth - 16, 900), dpr = window.devicePixelRatio || 1;
+        const st = $("#st", modal);
+        const w = Math.min(vw.clientWidth - 16, 900), dpr = Math.min(window.devicePixelRatio || 1, 2);
         for (let n = 1; n <= pdf.numPages; n++) {
           const page = await pdf.getPage(n);
           const base = page.getViewport({ scale: 1 });
@@ -175,6 +222,7 @@ const DataRoom = (() => {
           c.width = vp.width; c.height = vp.height; c.style.width = w + "px";
           vw.appendChild(c);
           await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+          if (st) st.textContent = n < pdf.numPages ? `Página ${n} de ${pdf.numPages}…` : "";
         }
       } catch { vw.innerHTML = '<p class="err center-msg">No se pudo mostrar el PDF. Usa «Descargar».</p>'; }
     } else if (r.mime.startsWith("image/")) {

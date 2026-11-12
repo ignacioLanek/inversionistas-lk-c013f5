@@ -47,7 +47,7 @@ const mkSheet = (name) => {
 const ss = { getSheetByName: (n) => sheets.get(n) || null, insertSheet: (n) => (sheets.set(n, mkSheet(n)), sheets.get(n)) };
 
 /* ── Drive simulado: Data room / (Finanzas, Legal) con el PDF de demo ── */
-const pdf = fs.existsSync(path.join(root, "dev/demo.pdf")) ? fs.readFileSync(path.join(root, "dev/demo.pdf")) : Buffer.from("%PDF-1.4\n%%EOF");
+const pdf = fs.existsSync(path.join(root, process.env.DEMO_PDF || "dev/demo.pdf")) ? fs.readFileSync(path.join(root, process.env.DEMO_PDF || "dev/demo.pdf")) : Buffer.from("%PDF-1.4\n%%EOF");
 const FT = {};
 const node = (id, name, mime, parent) => (FT[id] = { id, name, mime, parent });
 node("root", "Data room", "folder", null);

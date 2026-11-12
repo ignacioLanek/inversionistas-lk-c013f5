@@ -145,3 +145,20 @@ section[id], header[id] { scroll-margin-top: 72px; }
 
 .drpage { padding-block: 1.5rem 3rem; }
 .drpage .card { margin-top: 1rem; }
+
+/* ── Cargando ── */
+.spin { width: 26px; height: 26px; border: 3px solid var(--ink-200); border-top-color: var(--blue); border-radius: 50%; animation: lkspin .8s linear infinite; display: inline-block; flex: none; }
+@keyframes lkspin { to { transform: rotate(360deg); } }
+.loader { display: flex; flex-direction: column; align-items: center; gap: .6rem; text-align: center; padding: 1.2rem .5rem; }
+.loader .lmsg { margin: 0; font: 600 1rem var(--display); color: var(--ink-800); }
+.bar { width: min(320px, 80vw); height: 6px; border-radius: 99px; background: var(--ink-200); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 32%; border-radius: 99px; background: linear-gradient(90deg, #12c6e0, #1170ee); animation: lkslide 1.2s ease-in-out infinite; }
+.bar.det i { width: 4%; animation: none; transition: width .35s ease; }
+@keyframes lkslide { 0% { margin-left: -32%; } 100% { margin-left: 100%; } }
+.btn.busy::before { content: ""; width: 1em; height: 1em; margin-right: .55em; border: 2.5px solid rgba(255,255,255,.45); border-top-color: #fff; border-radius: 50%; animation: lkspin .7s linear infinite; }
+.btn-ghost.busy::before { border-color: rgba(17,112,238,.3); border-top-color: var(--blue); }
+.btn.busy:disabled { opacity: .85; }
+.bootload { min-height: 100vh; display: grid; place-items: center; }
+.bootload[hidden] { display: none; }
+.stat { font: 600 .8rem var(--display); color: var(--ink-500); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .spin, .btn.busy::before { animation-duration: 2.4s; } .bar i { animation-duration: 3s; } }

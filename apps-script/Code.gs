@@ -324,25 +324,35 @@ const ROUTES = {
     const idx = b.refresh === true ? buildIndex() : driveIndex();
     return { rootId: idx.rootId, items: idx.items.map((n) => ({ id: n.id, name: n.name, isFolder: n.isFolder, mime: n.mime, size: n.size || 0, parent: n.parent, path: n.path })) };
   },
-  /** Entrega el archivo (base64) solo si la sesión es válida y el archivo está dentro del data room. */
+  /** Entrega el archivo (base64) solo si la sesión es válida y el archivo está dentro del data room.
+   *  Archivos grandes: el navegador pide tramos en paralelo (b.part = 0,1,2…); cada tramo lee solo su rango de bytes. */
   dr_open: (b) => {
     const email = needDr(b.token);
     const id = String(b.id), node = driveIndex().items.filter((n) => n.id === id && !n.isFolder)[0];
-    const file = DriveApp.getFileById(id);
-    let ruta;
-    if (node) ruta = (node.path ? node.path + ' / ' : '') + node.name;
-    else { if (!insideRoot(file)) throw new Error('AUTH'); ruta = pathOf(file); buildIndex(); } // archivo nuevo aún no indexado
-    const mime = node ? node.mime : file.getMimeType();
-    const native = mime.indexOf('application/vnd.google-apps') === 0;
-    const blob = native ? file.getAs('application/pdf') : file.getBlob();
-    const bytes = blob.getBytes();
+    let file = null, name, mime, size, ruta;
+    if (node) { name = node.name; mime = node.mime; size = node.size || 0; ruta = (node.path ? node.path + ' / ' : '') + node.name; }
+    else { // archivo nuevo aún no indexado
+      file = DriveApp.getFileById(id);
+      if (!insideRoot(file)) throw new Error('AUTH');
+      name = file.getName(); mime = file.getMimeType(); size = file.getSize(); ruta = pathOf(file); buildIndex();
+    }
+    const native = mime.indexOf('application/vnd.google-apps') === 0, dl = b.mode === 'download';
+    const log = () => (dl ? (registrar(email, 'documento_descargado', { seccion: ruta }), null) : registrar(email, 'documento_abierto', { seccion: ruta }));
+    if (!native && size > MAX_FILE_BYTES) return { error: 'Archivo demasiado grande para vista previa. Pide el enlace al equipo.' };
+
+    if (b.part != null && !native) { // ── por tramos
+      const part = Math.max(0, Math.floor(Number(b.part))), from = part * DR_CHUNK;
+      if (from >= size) throw new Error('Tramo inválido');
+      const to = Math.min(size, from + DR_CHUNK) - 1;
+      const got = driveRange(id, from, to) || { bytes: (file || DriveApp.getFileById(id)).getBlob().getBytes().slice(from, to + 1), total: size };
+      const out = { part: part, data: Utilities.base64Encode(got.bytes) };
+      if (part === 0) { out.name = name; out.mime = mime; out.total = got.total || size; out.eventoId = log(); }
+      return out;
+    }
+    file = file || DriveApp.getFileById(id);
+    const bytes = (native ? file.getAs('application/pdf') : file.getBlob()).getBytes();
     if (bytes.length > MAX_FILE_BYTES) return { error: 'Archivo demasiado grande para vista previa. Pide el enlace al equipo.' };
-    const dl = b.mode === 'download';
-    let eventoId = null;
-    if (dl) registrar(email, 'documento_descargado', { seccion: ruta });
-    else eventoId = registrar(email, 'documento_abierto', { seccion: ruta });
-    const outMime = native ? 'application/pdf' : mime;
-    return { name: (node ? node.name : file.getName()) + (native ? '.pdf' : ''), mime: outMime, data: Utilities.base64Encode(bytes), eventoId: eventoId };
+    return { name: name + (native ? '.pdf' : ''), mime: native ? 'application/pdf' : mime, data: Utilities.base64Encode(bytes), eventoId: log() };
   },
 
   /* ── admin ── */
@@ -461,6 +471,29 @@ function pathOf(item) {
     names.unshift(cur.getName());
   }
   return names.join(' / ');
+}
+/** Lee un rango de bytes de un archivo por la API REST de Drive (mucho más rápido que getBlob() de todo el archivo). null si falla. */
+const DR_CHUNK = 700000;
+function driveRange(id, from, to) {
+  try {
+    const r = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) + '?alt=media&supportsAllDrives=true',
+      { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken(), Range: 'bytes=' + from + '-' + to }, muteHttpExceptions: true });
+    const c = r.getResponseCode(), h = r.getHeaders(), cr = String(h['Content-Range'] || h['content-range'] || '').match(/\/(\d+)$/);
+    if (c !== 200 && c !== 206) return null;
+    const bytes = r.getContent();
+    return { bytes: c === 200 && from > 0 ? bytes.slice(from, to + 1) : bytes, total: cr ? Number(cr[1]) : null };
+  } catch (e) { return null; }
+}
+/** Diagnóstico (ejecutar a mano en el editor): mide dónde se va el tiempo al abrir el archivo más grande del data room. */
+function diagRapidez() {
+  const t = () => Date.now(); let t0 = t();
+  const idx = driveIndex(); console.log('índice', t() - t0, 'ms,', idx.items.length, 'elementos');
+  const big = idx.items.filter((n) => !n.isFolder && n.size <= MAX_FILE_BYTES).sort((a, b) => (/deck/i.test(b.name) - /deck/i.test(a.name)) || (b.size || 0) - (a.size || 0))[0];
+  console.log('archivo', big.name, big.size);
+  t0 = t(); const f = DriveApp.getFileById(big.id); console.log('getFileById', t() - t0, 'ms');
+  t0 = t(); const bytes = f.getBlob().getBytes(); console.log('getBlob().getBytes()', t() - t0, 'ms');
+  t0 = t(); Utilities.base64Encode(bytes); console.log('base64 (todo)', t() - t0, 'ms');
+  t0 = t(); const r = driveRange(big.id, 0, DR_CHUNK - 1); console.log('rango 1,5 MB (REST)', t() - t0, 'ms', r ? r.bytes.length + ' bytes, total ' + r.total : 'FALLÓ');
 }
 /** Índice plano del data room (id, nombre, carpeta padre, ruta, tamaño). Cacheado 6 h y reconstruido cada hora por trigger. */
 const IDX_TTL = 21600;

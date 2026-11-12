@@ -1,6 +1,7 @@
 /* Flujo 1 (acceso), Flujo 2 (página) y tracking del sitio */
 const LS_EMAIL = "lanek_email";
-const gate = $("#gate"), site = $("#site");
+const gate = $("#gate"), site = $("#site"), bootEl = $("#boot");
+const hideBoot = () => { if (bootEl) bootEl.hidden = true; };
 
 document.querySelectorAll(".privacy-mail").forEach((n) => (n.textContent = LK.PRIVACY_EMAIL));
 $("#year").textContent = new Date().getFullYear();
@@ -53,6 +54,7 @@ async function boot() {
       if (c.needsForm === false) { await enter(saved); return boot(); }
     } catch {}
   }
+  hideBoot();
   gate.hidden = false;
 }
 
@@ -62,7 +64,7 @@ $("#gate-form").addEventListener("submit", async (e) => {
   err.textContent = "";
   const email = $("#g-email").value.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return (err.textContent = "Ingresa un correo válido.");
-  btn.disabled = true;
+  setBusy(btn, true, needsForm ? "Entrando…" : "Verificando…");
   try {
     if (!needsForm) {
       const c = await api("check", { email });
@@ -71,7 +73,7 @@ $("#gate-form").addEventListener("submit", async (e) => {
         needsForm = true;
         $("#g-extra").hidden = false;
         $("#g-email").readOnly = true;
-        btn.textContent = "Solicitar acceso y entrar";
+        btn.dataset.txt = "Solicitar acceso y entrar";
         $("#g-nombre").focus();
         return;
       }
@@ -87,7 +89,7 @@ $("#gate-form").addEventListener("submit", async (e) => {
   } catch (ex) {
     err.textContent = ex.message || "Error de conexión. Intenta de nuevo.";
   } finally {
-    btn.disabled = false;
+    setBusy(btn, false);
   }
 });
 
@@ -104,6 +106,7 @@ function renderBody(txt) {
 }
 
 function showSite(todas) {
+  hideBoot();
   gate.hidden = true;
   site.hidden = false;
   const fitData = todas.find((s) => s.id === "fit");

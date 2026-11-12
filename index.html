@@ -15,6 +15,7 @@
   <link rel="stylesheet" href="assets/css/style.css" />
 </head>
 <body>
+  <div id="boot" class="bootload" role="status" aria-live="polite"><div class="loader"><span class="spin" aria-hidden="true"></span><p class="lmsg">Cargando…</p><div class="bar" aria-hidden="true"><i></i></div></div></div>
   <!-- ═══ PANTALLA DE ACCESO ═══ -->
   <main id="gate" class="gate-screen" hidden>
     <form id="gate-form" class="card gate" novalidate>
@@ -109,7 +110,7 @@
       <button id="dr-close" class="drclose" type="button" aria-label="Cerrar">✕</button>
       <span class="chip">Acceso restringido</span>
       <h2 id="dr-title" class="h-lg">Data room</h2>
-      <div id="dr-body"><p class="muted">Cargando…</p></div>
+      <div id="dr-body"></div>
     </div>
   </div>
 
