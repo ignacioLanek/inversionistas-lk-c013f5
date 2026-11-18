@@ -55,22 +55,26 @@ node("f1", "1. Corporativo", "folder", "root"); node("f2", "2. Finanzas", "folde
 node("d1", "Pitch Deck Lanek.pdf", "application/pdf", "f1");
 node("d2", "Estados financieros 2025.pdf", "application/pdf", "f2");
 node("d3", "Contrato UCC.pdf", "application/pdf", "f3");
+/* Diapositivas de prueba (carpeta privada del deck, fuera del data room) */
+node("deck", "02 Deck sitio web", "folder", null);
+const svgSlide = (n, t, c) => Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080"><rect width="1920" height="1080" fill="${c}"/><text x="120" y="200" font-family="Arial" font-size="72" fill="#fff" font-weight="700">${t}</text><text x="120" y="980" font-family="Arial" font-size="48" fill="#ffffffaa">Diapositiva ${n}</text></svg>`);
+[["#0b1b3a", "Déficit de camas"], ["#1170ee", "Listas de espera"], ["#004dba", "Costo del problema"]].forEach(([c, t], i) => { node("s" + (i + 1), `problematica-0${i + 1}.svg`, "image/svg+xml", "deck"); FT["s" + (i + 1)].data = svgSlide(i + 1, t, c); });
 const asFolder = (n) => ({ getId: () => n.id, getName: () => n.name, getParents: () => it(n.parent ? [asFolder(FT[n.parent])] : []),
   getFolders: () => it(Object.values(FT).filter((x) => x.parent === n.id && x.mime === "folder").map(asFolder)),
   getFiles: () => it(Object.values(FT).filter((x) => x.parent === n.id && x.mime !== "folder").map(asFile)) });
 const asFile = (n) => ({ getId: () => n.id, getName: () => n.name, getMimeType: () => n.mime, getSize: () => pdf.length, getLastUpdated: () => new Date(),
-  getParents: () => it([asFolder(FT[n.parent])]), getBlob: () => ({ getBytes: () => [...pdf] }), getAs: () => ({ getBytes: () => [...pdf] }) });
+  getParents: () => it([asFolder(FT[n.parent])]), getBlob: () => ({ getBytes: () => [...(n.data || pdf)], getContentType: () => n.mime }), getAs: () => ({ getBytes: () => [...pdf] }) });
 const it = (arr) => { let i = 0; return { hasNext: () => i < arr.length, next: () => arr[i++] }; };
 
 /* ── Servicios de Apps Script simulados ── */
-const propsStore = { ADMIN_PASSWORD: "lanek-dev", DRIVE_ROOT_ID: "root", GCHAT_WEBHOOK: "http://simulado", SESSION_SECRET: crypto.randomBytes(24).toString("hex") };
+const propsStore = { ADMIN_PASSWORD: "lanek-dev", DRIVE_ROOT_ID: "root", DECK_FOLDER_ID: "deck", GCHAT_WEBHOOK: "http://simulado", SESSION_SECRET: crypto.randomBytes(24).toString("hex") };
 const cacheStore = new Map();
 const sandbox = {
   console, Date, Math, JSON, String, Number, Object, Array, RegExp, Error, Set, Promise,
   SpreadsheetApp: { getActiveSpreadsheet: () => ss, openById: () => ss },
   PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => propsStore[k] ?? null, setProperty: (k, v) => (propsStore[k] = v) }) },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
-  CacheService: { getScriptCache: () => ({ get: (k) => cacheStore.get(k) ?? null, put: (k, v) => cacheStore.set(k, v), remove: (k) => cacheStore.delete(k), getAll: (ks) => Object.fromEntries(ks.map((k) => [k, cacheStore.get(k) ?? null])) }) },
+  CacheService: { getScriptCache: () => ({ get: (k) => cacheStore.get(k) ?? null, put: (k, v) => cacheStore.set(k, v), remove: (k) => cacheStore.delete(k), removeAll: (ks) => ks.forEach((k) => cacheStore.delete(k)), getAll: (ks) => Object.fromEntries(ks.map((k) => [k, cacheStore.get(k) ?? null])) }) },
   Utilities: {
     getUuid: () => crypto.randomUUID(),
     base64EncodeWebSafe: (x) => (typeof x === "string" ? Buffer.from(x) : Buffer.from(x)).toString("base64").replace(/\+/g, "-").replace(/\//g, "_"),
@@ -93,6 +97,10 @@ const sandbox = {
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(path.join(root, "apps-script/Code.gs"), "utf8"), sandbox);
 vm.runInContext("setup()", sandbox);
+vm.runInContext(`db('diapositivas').getRange(2, 1, 3, 4).setValues([
+  ['problematica', 1, 'problematica-01.svg', 'El sistema de salud enfrenta un déficit crítico de camas.||Esto genera listas de espera y saturación.'],
+  ['problematica', 2, 'problematica-02.svg', 'Nota de la diapositiva 2.'],
+  ['problematica', 3, 'problematica-03.svg', '']])`, sandbox);
 console.log("Backend simulado listo (setup() ejecutado).");
 
 const mime = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".jpg": "image/jpeg", ".svg": "image/svg+xml" };

@@ -12,10 +12,11 @@ const COLS = {
   otp: ['email', 'code_hash', 'expira', 'intentos', 'usado', 'creado_en'],
   mensajes: ['email', 'mensaje', 'creado_en'],
   contenido: ['id', 'titulo', 'resumen', 'cuerpo'],
+  diapositivas: ['seccion', 'orden', 'imagen', 'notas'],
 };
 const TERMS_VERSION = '2026-11-borrador';
 const SITE_TTL = 30 * 24 * 3600, DR_TTL = 2 * 3600, ADMIN_TTL = 8 * 3600, MAX_FILE_BYTES = 25 * 1024 * 1024;
-const CLIENT_EVENTS = ['ingreso_recurrente', 'video_play', 'video_progreso', 'video_audio_activado', 'seccion_vista', 'cta_agendar_click', 'reunion_agendada', 'fit_abierta', 'fit_cerrada', 'fit_visible_segundos', 'fit_cta_click'];
+const CLIENT_EVENTS = ['ingreso_recurrente', 'video_play', 'video_progreso', 'video_audio_activado', 'seccion_vista', 'cta_agendar_click', 'reunion_agendada', 'fit_abierta', 'fit_cerrada', 'fit_visible_segundos', 'fit_cta_click', 'diapositiva_vista'];
 
 /* ───────────── utilidades ───────────── */
 const props = () => PropertiesService.getScriptProperties();
@@ -239,9 +240,18 @@ const ROUTES = {
     need(b.token, 'site');
     const cache = CacheService.getScriptCache(), hit = cache.get('contenido_v1');
     if (hit) return { secciones: JSON.parse(hit) };
-    const secciones = readAll('contenido').map((r) => ({ id: r.id, titulo: r.titulo, resumen: r.resumen, cuerpo: String(r.cuerpo) }));
+    const deck = deckSlides();
+    const secciones = readAll('contenido').map((r) => ({ id: r.id, titulo: r.titulo, resumen: r.resumen, cuerpo: String(r.cuerpo), slides: (deck[r.id] || []).map((d, i) => ({ n: i + 1, notas: d.notas })) }));
     try { cache.put('contenido_v1', JSON.stringify(secciones), 300); } catch (e) {}
     return { secciones: secciones };
+  },
+  /** Imagen de una diapositiva (sección + número). Solo imágenes de la carpeta DECK_FOLDER_ID listadas en la pestaña "diapositivas". */
+  deck_img: (b) => {
+    need(b.token, 'site');
+    const d = (deckSlides()[String(b.seccion)] || [])[Math.floor(Number(b.n)) - 1];
+    if (!d) return { error: 'Diapositiva no encontrada' };
+    const blob = DriveApp.getFileById(d.id).getBlob();
+    return { mime: blob.getContentType(), data: Utilities.base64Encode(blob.getBytes()) };
   },
   track: (b) => {
     const email = need(b.token, 'site');
@@ -523,6 +533,38 @@ function driveIndex() {
   return buildIndex();
 }
 function reconstruirIndice() { buildIndex(); }
+
+/* ───────────── Diapositivas por sección (visor de las tarjetas) ─────────────
+ * Pestaña "diapositivas": seccion (id de la tarjeta: problematica, solucion…) · orden · imagen (nombre del archivo) · notas
+ * Las imágenes viven en la carpeta privada DECK_FOLDER_ID; solo se sirven archivos de esa carpeta. Caché 5 min. */
+function deckSlides() {
+  const cache = CacheService.getScriptCache(), hit = cache.get('deck_v1');
+  if (hit) return JSON.parse(hit);
+  const files = {}, fid = prop('DECK_FOLDER_ID'), out = {};
+  if (fid) { const it = DriveApp.getFolderById(fid).getFiles(); while (it.hasNext()) { const f = it.next(); files[f.getName()] = f.getId(); } }
+  readAll('diapositivas').forEach((r) => {
+    const sec = String(r.seccion).trim(), id = files[String(r.imagen).trim()];
+    if (!sec || !id) return;
+    (out[sec] = out[sec] || []).push({ orden: Number(r.orden) || 0, notas: String(r.notas || ''), id: id });
+  });
+  Object.keys(out).forEach((k) => out[k].sort((a, b) => a.orden - b.orden));
+  try { cache.put('deck_v1', JSON.stringify(out), 300); } catch (e) {}
+  return out;
+}
+/** Ejecutar una vez: crea la pestaña "diapositivas" y la carpeta privada "02 Deck sitio web" junto al data room. También limpia la caché. */
+function prepararDeck() {
+  const sh = db('diapositivas'), cols = COLS.diapositivas;
+  sh.getRange(1, 1, 1, cols.length).setValues([cols]).setFontWeight('bold').setBackground('#eef2f7');
+  sh.setFrozenRows(1);
+  if (!prop('DECK_FOLDER_ID')) {
+    const ps = rootFolder().getParents(), parent = ps.hasNext() ? ps.next() : DriveApp.getRootFolder();
+    props().setProperty('DECK_FOLDER_ID', parent.createFolder('02 Deck sitio web').getId());
+  }
+  limpiarCache();
+  Logger.log('Carpeta de diapositivas: https://drive.google.com/drive/folders/' + prop('DECK_FOLDER_ID'));
+}
+/** Tras cambiar diapositivas o contenido: hace visibles los cambios al instante (si no, tardan hasta 5 min). */
+function limpiarCache() { CacheService.getScriptCache().removeAll(['deck_v1', 'contenido_v1']); }
 
 /* ───────────── triggers ───────────── */
 function resumenDiario() {

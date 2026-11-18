@@ -160,5 +160,27 @@ section[id], header[id] { scroll-margin-top: 72px; }
 .btn.busy:disabled { opacity: .85; }
 .bootload { min-height: 100vh; display: grid; place-items: center; }
 .bootload[hidden] { display: none; }
-.stat { font: 600 .8rem var(--display); color: var(--ink-500); white-space: nowrap; }
+.vstat { font: 600 .8rem var(--display); color: var(--ink-500); white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) { .spin, .btn.busy::before { animation-duration: 2.4s; } .bar i { animation-duration: 3s; } }
+
+/* ── Visor de diapositivas en las tarjetas ── */
+.secbody.has-slides { padding: 1rem 1.4rem 1.4rem; }
+.sv { outline: none; border-radius: 14px; }
+.sv:focus-visible { box-shadow: 0 0 0 3px rgba(17,112,238,.35); }
+.sv-stage { position: relative; aspect-ratio: 16 / 9; background: var(--ink-050); border: 1px solid var(--ink-200); border-radius: 12px; overflow: hidden; }
+.sv-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #fff; -webkit-user-select: none; user-select: none; }
+.sv-load { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .5rem; z-index: 2; }
+.sv-load[hidden] { display: none; }
+.sv-hit { position: absolute; top: 0; bottom: 0; width: 30%; background: transparent; border: 0; cursor: pointer; z-index: 1; }
+.sv-hit-prev { left: 0; cursor: w-resize; } .sv-hit-next { right: 0; cursor: e-resize; }
+.sv-bar { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; margin: .8rem 0; }
+.sv-nav { display: inline-flex; align-items: center; gap: .3rem; }
+.sv-bar .pill { margin: 0; min-height: 38px; }
+.pill:disabled { opacity: .4; cursor: default; }
+.sv-count { font: 600 .9rem var(--display); color: var(--ink-500); min-width: 4.2rem; text-align: center; }
+.sv-notes { background: var(--ink-050); border: 1px solid var(--ink-100); border-radius: 12px; padding: 1rem 1.2rem; color: var(--ink-800); line-height: 1.65; }
+.sv-notes[hidden] { display: none; }
+.sv-notes p { margin: 0 0 .6em; } .sv-notes p:last-child { margin: 0; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 560px) { .sv-bar { justify-content: center; } .sv-nav { order: -1; width: 100%; justify-content: space-between; } }
+@media (max-width: 480px) { .nav-brand span { display: none; } .nav nav a:not(.btn) { white-space: nowrap; } }

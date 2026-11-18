@@ -118,14 +118,16 @@ function showSite(todas) {
         <span><h3>${esc(s.titulo)}</h3><small>${esc(s.resumen)}</small></span>
         <span class="chev" aria-hidden="true">+</span>
       </button>
-      <div class="secbody" hidden>${renderBody(s.cuerpo)}</div>
+      <div class="secbody${s.slides && s.slides.length ? " has-slides" : ""}" hidden>${s.slides && s.slides.length ? "" : renderBody(s.cuerpo)}</div>
     </article>`).join("");
 
-  document.querySelectorAll(".section").forEach((card) => {
-    const head = $(".sechead", card), body = $(".secbody", card);
+  document.querySelectorAll(".section").forEach((card, idx) => {
+    const head = $(".sechead", card), body = $(".secbody", card), sec = secciones[idx];
+    let viewer = null;
     head.addEventListener("click", () => {
       const open = body.hidden;
       body.hidden = !open;
+      if (open && sec.slides && sec.slides.length) { viewer = viewer || slideViewer(body, sec); viewer.focus(); }
       head.setAttribute("aria-expanded", String(open));
       $(".chev", card).textContent = open ? "–" : "+";
     });
@@ -136,6 +138,76 @@ function showSite(todas) {
   initMeeting();
   initFit(fitData);
   initDataRoom();
+}
+
+/* ───────── Visor de diapositivas (dentro de cada tarjeta): diapositiva, controles y notas ───────── */
+function slideViewer(box, sec) {
+  const slides = sec.slides, n = slides.length, imgs = {}, seen = new Set();
+  let i = 0, ticket = 0;
+  box.innerHTML = `
+    <div class="sv" tabindex="0" role="region" aria-roledescription="presentación" aria-label="Diapositivas: ${esc(sec.titulo)}">
+      <div class="sv-stage">
+        <img class="sv-img" alt="" hidden />
+        <div class="sv-load"><span class="spin" aria-hidden="true"></span><span class="sr">Cargando diapositiva…</span></div>
+        <button type="button" class="sv-hit sv-hit-prev" tabindex="-1" aria-hidden="true"></button>
+        <button type="button" class="sv-hit sv-hit-next" tabindex="-1" aria-hidden="true"></button>
+      </div>
+      <div class="sv-bar">
+        <button type="button" class="pill sv-reset" aria-label="Volver a la primera diapositiva">↺ Reiniciar</button>
+        <span class="sv-nav">
+          <button type="button" class="pill sv-prev" aria-label="Diapositiva anterior">← Anterior</button>
+          <span class="sv-count" aria-live="polite"></span>
+          <button type="button" class="pill sv-next" aria-label="Diapositiva siguiente">Siguiente →</button>
+        </span>
+      </div>
+      <div class="sv-notes" aria-live="polite"></div>
+    </div>`;
+  const root = $(".sv", box), img = $(".sv-img", box), load = $(".sv-load", box), notes = $(".sv-notes", box);
+  const fetchImg = (k) => (imgs[k] = imgs[k] || api("deck_img", { token: siteToken(), seccion: sec.id, n: k + 1 }).then((r) => {
+    if (!r || !r.data) { delete imgs[k]; throw new Error((r && r.error) || "Error"); }
+    return URL.createObjectURL(new Blob([b64Bytes(r.data)], { type: r.mime }));
+  }, (e) => { delete imgs[k]; throw e; }));
+  async function show(k) {
+    i = Math.max(0, Math.min(n - 1, k));
+    const t = ++ticket;
+    $(".sv-count", box).textContent = `${i + 1} / ${n}`;
+    $(".sv-prev", box).disabled = i === 0;
+    $(".sv-next", box).disabled = i === n - 1;
+    $(".sv-reset", box).disabled = i === 0;
+    const txt = String(slides[i].notas || "").trim();
+    notes.hidden = !txt;
+    notes.innerHTML = txt.split(/\n|\|\|/).filter(Boolean).map((l) => `<p>${esc(l)}</p>`).join("");
+    if (!seen.has(i)) { seen.add(i); track("diapositiva_vista", { seccion: `${sec.id}#${i + 1}` }); }
+    load.hidden = false; load.classList.remove("err");
+    load.innerHTML = '<span class="spin" aria-hidden="true"></span><span class="sr">Cargando diapositiva…</span>';
+    [i + 1, i + 2].filter((x) => x < n).forEach((x) => fetchImg(x).catch(() => {})); // precarga las siguientes
+    try {
+      const url = await fetchImg(i);
+      if (t !== ticket) return;
+      img.src = url; img.alt = `Diapositiva ${i + 1} de ${n} · ${sec.titulo}`; img.hidden = false; load.hidden = true;
+    } catch {
+      if (t !== ticket) return;
+      img.hidden = true; load.classList.add("err");
+      load.innerHTML = '<p class="err">No se pudo cargar la diapositiva.</p><button type="button" class="pill">Reintentar</button>';
+      $("button", load).onclick = () => show(i);
+    }
+  }
+  $(".sv-prev", box).onclick = () => show(i - 1);
+  $(".sv-next", box).onclick = () => show(i + 1);
+  $(".sv-reset", box).onclick = () => show(0);
+  $(".sv-hit-prev", box).onclick = () => show(i - 1);
+  $(".sv-hit-next", box).onclick = () => show(i + 1);
+  root.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); show(i + 1); }
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); show(i - 1); }
+    else if (e.key === "Home") { e.preventDefault(); show(0); }
+    else if (e.key === "End") { e.preventDefault(); show(n - 1); }
+  });
+  let x0 = null;
+  root.addEventListener("touchstart", (e) => { x0 = e.touches[0].clientX; }, { passive: true });
+  root.addEventListener("touchend", (e) => { if (x0 == null) return; const dx = e.changedTouches[0].clientX - x0; x0 = null; if (Math.abs(dx) > 45) show(i + (dx < 0 ? 1 : -1)); });
+  show(0);
+  return { focus: () => root.focus({ preventScroll: true }) };
 }
 
 /* ───────── ¿Calzamos? (acordeón accesible) ───────── */

@@ -168,7 +168,7 @@ const DataRoom = (() => {
   async function openDoc(id) {
     const modal = document.createElement("div");
     modal.className = "modal";
-    modal.innerHTML = '<div class="modalbar"><b>Abriendo documento…</b><span><span class="stat" id="st"></span> <button class="pill" id="dl" disabled>Descargar</button><button class="pill" id="cl">Cerrar ✕</button></span></div><div class="viewer" id="vw"><div class="center-msg" id="ld">' + loaderHTML("Descargando documento…", true) + '</div></div>';
+    modal.innerHTML = '<div class="modalbar"><b>Abriendo documento…</b><span><span class="vstat" id="st"></span> <button class="pill" id="dl" disabled>Descargar</button><button class="pill" id="cl">Cerrar ✕</button></span></div><div class="viewer" id="vw"><div class="center-msg" id="ld">' + loaderHTML("Descargando documento…", true) + '</div></div>';
     document.body.appendChild(modal);
     document.body.style.overflow = "hidden";
     const t0 = Date.now();

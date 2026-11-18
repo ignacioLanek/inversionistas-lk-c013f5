@@ -52,3 +52,4 @@ function setBusy(btn, on, label) {
   if (on) { btn.dataset.txt = btn.dataset.txt || btn.textContent; btn.disabled = true; btn.classList.add("busy"); if (label) btn.textContent = label; }
   else { btn.disabled = false; btn.classList.remove("busy"); if (btn.dataset.txt) { btn.textContent = btn.dataset.txt; delete btn.dataset.txt; } }
 }
+const b64Bytes = (b64) => { const s = atob(b64), n = s.length, u = new Uint8Array(n); for (let i = 0; i < n; i++) u[i] = s.charCodeAt(i); return u; };
