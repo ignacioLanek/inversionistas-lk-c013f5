@@ -183,7 +183,7 @@ const DataRoom = (() => {
     window.addEventListener("pagehide", close);
 
     const ld = $("#ld", modal), stopHint = slowHint(ld, 8000), small = !(byId[id] && byId[id].size > CHUNK);
-    if (small) ld.querySelector(".bar").classList.remove("det");
+    if (small) ld.querySelector(".lbar").classList.remove("det");
     const r = await fetchDoc(id, "view", (d, n) => setProgress(ld, (d / n) * 100, `Descargando documento… ${Math.round((d / n) * 100)} %`)).catch(() => ({ error: "Error de conexión" }));
     stopHint();
     if (r.auth) { close(); return expired(); }

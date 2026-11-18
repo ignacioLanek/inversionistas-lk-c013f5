@@ -56,10 +56,20 @@ input:focus, textarea:focus { outline: 2px solid var(--blue); border-color: tran
 .nav nav { display: flex; align-items: center; gap: 1.1rem; } .nav nav a:not(.btn) { color: var(--ink-800); text-decoration: none; font: 600 .9rem var(--display); }
 
 /* hero */
-.hero { background: var(--corner), #fff; border-bottom: 1px solid var(--ink-200); padding-top: 1.5rem; }
+.hero { position: relative; background: radial-gradient(55% 70% at 100% 0%, rgba(2,249,217,.14) 0%, rgba(2,249,217,0) 60%), radial-gradient(50% 60% at 0% 20%, rgba(17,112,238,.10) 0%, rgba(17,112,238,0) 60%), linear-gradient(180deg, #f3f8fe 0%, #ffffff 100%); padding: clamp(44px, 8vw, 84px) clamp(20px, 6vw, 96px) clamp(40px, 6vw, 64px); overflow-x: hidden; border-bottom: 1px solid var(--ink-100); }
+.hero-in { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: clamp(36px, 6vw, 64px); align-items: center; }
+.hero-logo { width: clamp(200px, 30vw, 300px); height: auto; display: block; }
+.hero-slogan { font: 700 clamp(22px, 2vw, 28px) var(--display); color: var(--blue-deep); margin: 10px 0 24px; padding-left: clamp(60px, 9vw, 96px); }
+.hero-lead { font-size: 20px; line-height: 1.5; color: var(--ink-700); margin: 0; max-width: 30em; text-wrap: pretty; }
+.hero-lead strong { color: var(--ink-900); }
+.hero-art { position: relative; padding: 0 0 clamp(48px, 9vw, 96px) clamp(24px, 6vw, 64px); margin-right: calc(-1 * clamp(0px, 5vw, 80px)); min-width: 0; }
+.hero-art img { display: block; height: auto; }
+.hero-foto { width: 100%; filter: drop-shadow(0 24px 48px rgba(11,27,58,.18)); }
+.hero-nb { position: absolute; left: clamp(4px, 2vw, 20px); bottom: 0; width: 48%; filter: drop-shadow(0 20px 40px rgba(11,27,58,.22)); }
+.hero-ph { position: absolute; left: 0; bottom: clamp(4px, 1vw, 10px); width: 14%; filter: drop-shadow(0 16px 32px rgba(11,27,58,.28)); }
+.videowrap { padding-top: 2rem; }
 .video { position: relative; aspect-ratio: 16/9; border-radius: var(--radius); overflow: hidden; background: var(--ink-900); box-shadow: 0 20px 50px rgba(11,27,58,.18); margin-bottom: 2rem; }
 .video iframe, .video #yt { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
-.video.placeholder { display: grid; place-items: center; color: #fff; padding: 1rem; text-align: center; }
 .unmute { position: absolute; left: 12px; bottom: 56px; z-index: 3; }
 
 /* tarjetas */
@@ -151,9 +161,9 @@ section[id], header[id] { scroll-margin-top: 72px; }
 @keyframes lkspin { to { transform: rotate(360deg); } }
 .loader { display: flex; flex-direction: column; align-items: center; gap: .6rem; text-align: center; padding: 1.2rem .5rem; }
 .loader .lmsg { margin: 0; font: 600 1rem var(--display); color: var(--ink-800); }
-.bar { width: min(320px, 80vw); height: 6px; border-radius: 99px; background: var(--ink-200); overflow: hidden; }
-.bar i { display: block; height: 100%; width: 32%; border-radius: 99px; background: linear-gradient(90deg, #12c6e0, #1170ee); animation: lkslide 1.2s ease-in-out infinite; }
-.bar.det i { width: 4%; animation: none; transition: width .35s ease; }
+.lbar { width: min(320px, 80vw); height: 6px; border-radius: 99px; background: var(--ink-200); overflow: hidden; }
+.lbar i { display: block; height: 100%; width: 32%; border-radius: 99px; background: linear-gradient(90deg, #12c6e0, #1170ee); animation: lkslide 1.2s ease-in-out infinite; }
+.lbar.det i { width: 4%; animation: none; transition: width .35s ease; }
 @keyframes lkslide { 0% { margin-left: -32%; } 100% { margin-left: 100%; } }
 .btn.busy::before { content: ""; width: 1em; height: 1em; margin-right: .55em; border: 2.5px solid rgba(255,255,255,.45); border-top-color: #fff; border-radius: 50%; animation: lkspin .7s linear infinite; }
 .btn-ghost.busy::before { border-color: rgba(17,112,238,.3); border-top-color: var(--blue); }
@@ -161,7 +171,7 @@ section[id], header[id] { scroll-margin-top: 72px; }
 .bootload { min-height: 100vh; display: grid; place-items: center; }
 .bootload[hidden] { display: none; }
 .vstat { font: 600 .8rem var(--display); color: var(--ink-500); white-space: nowrap; }
-@media (prefers-reduced-motion: reduce) { .spin, .btn.busy::before { animation-duration: 2.4s; } .bar i { animation-duration: 3s; } }
+@media (prefers-reduced-motion: reduce) { .spin, .btn.busy::before { animation-duration: 2.4s; } .lbar i { animation-duration: 3s; } }
 
 /* ── Visor de diapositivas en las tarjetas ── */
 .secbody.has-slides { padding: 1rem 1.4rem 1.4rem; }

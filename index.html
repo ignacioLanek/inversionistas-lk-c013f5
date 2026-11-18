@@ -12,10 +12,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Raleway:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="assets/css/style.css" />
+  <link rel="stylesheet" href="assets/css/style.css?v=20261118b" />
 </head>
 <body>
-  <div id="boot" class="bootload" role="status" aria-live="polite"><div class="loader"><span class="spin" aria-hidden="true"></span><p class="lmsg">Cargando…</p><div class="bar" aria-hidden="true"><i></i></div></div></div>
+  <div id="boot" class="bootload" role="status" aria-live="polite"><div class="loader"><span class="spin" aria-hidden="true"></span><p class="lmsg">Cargando…</p><div class="lbar" aria-hidden="true"><i></i></div></div></div>
   <!-- ═══ PANTALLA DE ACCESO ═══ -->
   <main id="gate" class="gate-screen" hidden>
     <form id="gate-form" class="card gate" novalidate>
@@ -55,9 +55,22 @@
     </header>
 
     <section class="hero" id="top">
-      <div class="wrap">
-        <div id="video" class="video"></div>
+      <div class="hero-in">
+        <div class="hero-txt">
+          <img class="hero-logo" src="assets/img/logotipo-degrade.png" alt="Lanek" width="300" height="99" />
+          <p class="hero-slogan">Salud más allá del Hospital</p>
+          <p class="hero-lead">Sistema Inteligente de Hospital en Casa: Ayudamos a Clínicas, Hospitales y Home Cares a <strong>atender más pacientes</strong> con el mismo personal y sin construir camas ni hospitales.</p>
+        </div>
+        <div class="hero-art">
+          <img class="hero-foto" src="assets/img/lk-hero-foto.png" alt="Paciente acompañada en su hogar durante la noche" />
+          <img class="hero-nb" src="assets/img/lk-hero-notebook.png" alt="Torre de Control de Lanek Home en un notebook" />
+          <img class="hero-ph" src="assets/img/lk-hero-phone.png" alt="App del equipo clínico con pacientes asignados" />
+        </div>
       </div>
+    </section>
+
+    <section class="wrap videowrap" id="video-sec" hidden>
+      <div id="video" class="video"></div>
     </section>
 
     <section id="secciones" class="wrap">
@@ -114,9 +127,9 @@
     </div>
   </div>
 
-  <script src="assets/js/config.js"></script>
-  <script src="assets/js/api.js"></script>
-  <script src="assets/js/dataroom.js"></script>
-  <script src="assets/js/app.js"></script>
+  <script src="assets/js/config.js?v=20261118b"></script>
+  <script src="assets/js/api.js?v=20261118b"></script>
+  <script src="assets/js/dataroom.js?v=20261118b"></script>
+  <script src="assets/js/app.js?v=20261118b"></script>
 </body>
 </html>

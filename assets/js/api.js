@@ -43,9 +43,9 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const fmtDur = (s) => (s >= 60 ? `${Math.floor(s / 60)}m ${Math.round(s % 60)}s` : `${Math.round(s)}s`);
 
 /* ── Indicadores de carga: giro + barra (indeterminada o con avance) y aviso si se demora ── */
-const loaderHTML = (msg, det) => `<div class="loader" role="status" aria-live="polite"><span class="spin" aria-hidden="true"></span><p class="lmsg">${esc(msg)}</p><div class="bar${det ? " det" : ""}" aria-hidden="true"><i></i></div><p class="muted lslow" hidden>Sigue cargando, puede tardar unos segundos más…</p></div>`;
+const loaderHTML = (msg, det) => `<div class="loader" role="status" aria-live="polite"><span class="spin" aria-hidden="true"></span><p class="lmsg">${esc(msg)}</p><div class="lbar${det ? " det" : ""}" aria-hidden="true"><i></i></div><p class="muted lslow" hidden>Sigue cargando, puede tardar unos segundos más…</p></div>`;
 function slowHint(el, ms = 6000) { const t = setTimeout(() => { const s = el.querySelector(".lslow"); if (s) s.hidden = false; }, ms); return () => clearTimeout(t); }
-function setProgress(el, pct, msg) { const i = el.querySelector(".bar i"), m = el.querySelector(".lmsg"); if (i) i.style.width = Math.max(4, Math.min(100, pct)) + "%"; if (m && msg) m.textContent = msg; }
+function setProgress(el, pct, msg) { const i = el.querySelector(".lbar i"), m = el.querySelector(".lmsg"); if (i) i.style.width = Math.max(4, Math.min(100, pct)) + "%"; if (m && msg) m.textContent = msg; }
 /* Botón ocupado: deshabilitado + giro + texto de estado; al terminar vuelve a su texto original. */
 function setBusy(btn, on, label) {
   if (!btn) return;

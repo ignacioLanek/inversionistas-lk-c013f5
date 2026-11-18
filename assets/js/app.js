@@ -32,7 +32,10 @@ async function boot() {
       if (!store.get("lk_visit", true)) { store.set("lk_visit", "1", true); track("ingreso_recurrente"); }
       showSite(cached);
       api("contenido", { token: siteToken() }).then((r) => {
-        if (r && r.secciones) store.set("lk_content", JSON.stringify(r.secciones));
+        if (r && r.secciones) {
+          const fresh = JSON.stringify(r.secciones);
+          if (fresh !== JSON.stringify(cached)) { store.set("lk_content", fresh); renderCards(r.secciones.filter((x) => x.id !== "fit")); }
+        }
         else if (r && r.auth) { store.del("lk_site"); store.del("lk_content"); location.reload(); }
       }).catch(() => {});
       return;
@@ -110,7 +113,15 @@ function showSite(todas) {
   gate.hidden = true;
   site.hidden = false;
   const fitData = todas.find((s) => s.id === "fit");
-  const secciones = todas.filter((s) => s.id !== "fit");
+  renderCards(todas.filter((s) => s.id !== "fit"));
+  initVideo();
+  initMeeting();
+  initFit(fitData);
+  initDataRoom();
+}
+
+/* Tarjetas de las seis secciones (se vuelven a dibujar si llega contenido nuevo) */
+function renderCards(secciones) {
   $("#cards").innerHTML = secciones.map((s, i) => `
     <article class="card section" id="sec-${esc(s.id)}" data-id="${esc(s.id)}">
       <button class="sechead" aria-expanded="false">
@@ -133,11 +144,6 @@ function showSite(todas) {
     });
     trackSection(card, card.dataset.id);
   });
-
-  initVideo();
-  initMeeting();
-  initFit(fitData);
-  initDataRoom();
 }
 
 /* ───────── Visor de diapositivas (dentro de cada tarjeta): diapositiva, controles y notas ───────── */
@@ -291,11 +297,8 @@ function trackSection(el, id) {
 /* ───────── Video YouTube (autoplay mudo + subtítulos) ───────── */
 function initVideo() {
   const box = $("#video");
-  if (!LK.YT_ID) {
-    box.classList.add("placeholder");
-    box.textContent = "Video micro-pitch (configura YT_ID en assets/js/config.js)";
-    return;
-  }
+  if (!LK.YT_ID) return; // sin video aún: se muestra solo el hero
+  $("#video-sec").hidden = false;
   box.innerHTML = '<div id="yt"></div><button id="unmute" class="btn unmute" hidden>🔊 Activar audio</button>';
   const boot = () => {
     let played = false, timer = null;
