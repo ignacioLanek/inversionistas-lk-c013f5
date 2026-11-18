@@ -551,14 +551,15 @@ function deckSlides() {
   try { cache.put('deck_v1', JSON.stringify(out), 300); } catch (e) {}
   return out;
 }
-/** Ejecutar una vez: crea la pestaña "diapositivas" y la carpeta privada "02 Deck sitio web" junto al data room. También limpia la caché. */
+/** Ejecutar una vez: crea la pestaña "diapositivas" y enlaza la carpeta privada "02 Deck sitio web" (creada en Drive). También limpia la caché. */
 function prepararDeck() {
   const sh = db('diapositivas'), cols = COLS.diapositivas;
   sh.getRange(1, 1, 1, cols.length).setValues([cols]).setFontWeight('bold').setBackground('#eef2f7');
   sh.setFrozenRows(1);
-  if (!prop('DECK_FOLDER_ID')) {
-    const ps = rootFolder().getParents(), parent = ps.hasNext() ? ps.next() : DriveApp.getRootFolder();
-    props().setProperty('DECK_FOLDER_ID', parent.createFolder('02 Deck sitio web').getId());
+  if (!prop('DECK_FOLDER_ID')) { // la carpeta se crea a mano en Drive (el script solo lee Drive, no necesita permiso de escritura)
+    const it = DriveApp.getFoldersByName('02 Deck sitio web');
+    if (!it.hasNext()) throw new Error('Crea en Drive la carpeta "02 Deck sitio web" y vuelve a ejecutar.');
+    props().setProperty('DECK_FOLDER_ID', it.next().getId());
   }
   limpiarCache();
   Logger.log('Carpeta de diapositivas: https://drive.google.com/drive/folders/' + prop('DECK_FOLDER_ID'));
