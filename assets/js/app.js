@@ -144,11 +144,47 @@ function renderCards(secciones) {
     });
     trackSection(card, card.dataset.id);
   });
+  SlideImgs.prefetch(secciones);
 }
+
+/* ───────── Imágenes de diapositivas: memoria → caché del navegador → servidor (y precarga en segundo plano) ───────── */
+const SlideImgs = (() => {
+  const mem = {}, CN = "lk-slides-v1";
+  const key = (sec, s) => `${location.origin}/__lk_slide/${encodeURIComponent(sec)}/${s.n}/${encodeURIComponent(s.k || "0")}`;
+  const cache = () => (window.caches ? caches.open(CN) : Promise.reject());
+  function get(sec, s) {
+    const k = key(sec, s);
+    return (mem[k] = mem[k] || (async () => {
+      let blob = null;
+      try { const r = await (await cache()).match(k); if (r) blob = await r.blob(); } catch {}
+      if (!blob) {
+        const r = await api("deck_img", { token: siteToken(), seccion: sec, n: s.n });
+        if (!r || !r.data) throw new Error((r && r.error) || "Error");
+        blob = new Blob([b64Bytes(r.data)], { type: r.mime });
+        if (s.k) cache().then((c) => c.put(k, new Response(blob, { headers: { "Content-Type": r.mime } }))).catch(() => {});
+      }
+      return URL.createObjectURL(blob);
+    })().catch((e) => { delete mem[k]; throw e; }));
+  }
+  /* Precarga: primero la diapositiva 1 de cada sección, luego el resto (2 a la vez). Borra versiones viejas. */
+  let sig = "";
+  function prefetch(secciones) {
+    const valid = new Set(), first = [], rest = [];
+    secciones.forEach((sec) => (sec.slides || []).forEach((s, i) => { valid.add(key(sec.id, s)); (i ? rest : first).push([sec.id, s]); }));
+    cache().then(async (c) => { for (const req of await c.keys()) if (!valid.has(req.url)) c.delete(req); }).catch(() => {});
+    const conn = navigator.connection || {}, light = conn.saveData || /2g/.test(conn.effectiveType || "");
+    const queue = light ? first : first.concat(rest);
+    const now = queue.map(([sec, s]) => key(sec, s)).join("|");
+    if (!queue.length || now === sig) return; sig = now;
+    const worker = async () => { while (queue.length) { const [sec, s] = queue.shift(); await get(sec, s).catch(() => {}); } };
+    setTimeout(() => { worker(); worker(); }, 1200);
+  }
+  return { get, prefetch };
+})();
 
 /* ───────── Visor de diapositivas (dentro de cada tarjeta): diapositiva, controles y notas ───────── */
 function slideViewer(box, sec) {
-  const slides = sec.slides, n = slides.length, imgs = {}, seen = new Set();
+  const slides = sec.slides, n = slides.length, seen = new Set();
   let i = 0, ticket = 0;
   box.innerHTML = `
     <div class="sv" tabindex="0" role="region" aria-roledescription="presentación" aria-label="Diapositivas: ${esc(sec.titulo)}">
@@ -169,10 +205,7 @@ function slideViewer(box, sec) {
       <div class="sv-notes" aria-live="polite"></div>
     </div>`;
   const root = $(".sv", box), img = $(".sv-img", box), load = $(".sv-load", box), notes = $(".sv-notes", box);
-  const fetchImg = (k) => (imgs[k] = imgs[k] || api("deck_img", { token: siteToken(), seccion: sec.id, n: k + 1 }).then((r) => {
-    if (!r || !r.data) { delete imgs[k]; throw new Error((r && r.error) || "Error"); }
-    return URL.createObjectURL(new Blob([b64Bytes(r.data)], { type: r.mime }));
-  }, (e) => { delete imgs[k]; throw e; }));
+  const fetchImg = (k) => SlideImgs.get(sec.id, slides[k]);
   async function show(k) {
     i = Math.max(0, Math.min(n - 1, k));
     const t = ++ticket;

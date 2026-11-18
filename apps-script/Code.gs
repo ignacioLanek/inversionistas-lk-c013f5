@@ -241,7 +241,7 @@ const ROUTES = {
     const cache = CacheService.getScriptCache(), hit = cache.get('contenido_v1');
     if (hit) return { secciones: JSON.parse(hit) };
     const deck = deckSlides();
-    const secciones = readAll('contenido').map((r) => ({ id: r.id, titulo: r.titulo, resumen: r.resumen, cuerpo: String(r.cuerpo), slides: (deck[r.id] || []).map((d, i) => ({ n: i + 1, notas: d.notas })) }));
+    const secciones = readAll('contenido').map((r) => ({ id: r.id, titulo: r.titulo, resumen: r.resumen, cuerpo: String(r.cuerpo), slides: (deck[r.id] || []).map((d, i) => ({ n: i + 1, notas: d.notas, k: d.k })) }));
     try { cache.put('contenido_v1', JSON.stringify(secciones), 300); } catch (e) {}
     return { secciones: secciones };
   },
@@ -538,17 +538,17 @@ function reconstruirIndice() { buildIndex(); }
  * Pestaña "diapositivas": seccion (id de la tarjeta: problematica, solucion…) · orden · imagen (nombre del archivo) · notas
  * Las imágenes viven en la carpeta privada DECK_FOLDER_ID; solo se sirven archivos de esa carpeta. Caché 5 min. */
 function deckSlides() {
-  const cache = CacheService.getScriptCache(), hit = cache.get('deck_v1');
+  const cache = CacheService.getScriptCache(), hit = cache.get('deck_v2');
   if (hit) return JSON.parse(hit);
   const files = {}, fid = prop('DECK_FOLDER_ID'), out = {};
-  if (fid) { const it = DriveApp.getFolderById(fid).getFiles(); while (it.hasNext()) { const f = it.next(); files[f.getName()] = f.getId(); } }
+  if (fid) { const it = DriveApp.getFolderById(fid).getFiles(); while (it.hasNext()) { const f = it.next(); files[f.getName()] = { id: f.getId(), k: f.getId().slice(-10) + '-' + f.getLastUpdated().getTime() }; } }
   readAll('diapositivas').forEach((r) => {
-    const sec = String(r.seccion).trim(), id = files[String(r.imagen).trim()];
-    if (!sec || !id) return;
-    (out[sec] = out[sec] || []).push({ orden: Number(r.orden) || 0, notas: String(r.notas || ''), id: id });
+    const sec = String(r.seccion).trim(), f = files[String(r.imagen).trim()];
+    if (!sec || !f) return;
+    (out[sec] = out[sec] || []).push({ orden: Number(r.orden) || 0, notas: String(r.notas || ''), id: f.id, k: f.k }); // k: versión (cambia si se reemplaza la imagen)
   });
   Object.keys(out).forEach((k) => out[k].sort((a, b) => a.orden - b.orden));
-  try { cache.put('deck_v1', JSON.stringify(out), 300); } catch (e) {}
+  try { cache.put('deck_v2', JSON.stringify(out), 300); } catch (e) {}
   return out;
 }
 /** Ejecutar una vez: crea la pestaña "diapositivas" y enlaza la carpeta privada "02 Deck sitio web" (creada en Drive). También limpia la caché. */
@@ -565,7 +565,7 @@ function prepararDeck() {
   Logger.log('Carpeta de diapositivas: https://drive.google.com/drive/folders/' + prop('DECK_FOLDER_ID'));
 }
 /** Tras cambiar diapositivas o contenido: hace visibles los cambios al instante (si no, tardan hasta 5 min). */
-function limpiarCache() { CacheService.getScriptCache().removeAll(['deck_v1', 'contenido_v1']); }
+function limpiarCache() { CacheService.getScriptCache().removeAll(['deck_v1', 'deck_v2', 'contenido_v1']); }
 
 /* ───────────── triggers ───────────── */
 function resumenDiario() {
