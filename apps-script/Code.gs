@@ -140,6 +140,13 @@ function gchat(text) {
     UrlFetchApp.fetch(url, { method: 'post', contentType: 'application/json; charset=UTF-8', payload: JSON.stringify({ text: text }), muteHttpExceptions: true });
   } catch (e) { console.error('gchat', e); }
 }
+/** Ejecutar a mano en el editor: envía un mensaje de prueba al espacio de Google Chat (propiedad GCHAT_WEBHOOK). */
+function probarChat() {
+  const url = prop('GCHAT_WEBHOOK');
+  if (!url) { Logger.log('⚠️ Falta la propiedad GCHAT_WEBHOOK (Configuración del proyecto → Propiedades de secuencia de comandos).'); return; }
+  const r = UrlFetchApp.fetch(url, { method: 'post', contentType: 'application/json; charset=UTF-8', payload: JSON.stringify({ text: '✅ *Prueba del sitio de inversionistas Lanek*\nLas notificaciones están funcionando.' }), muteHttpExceptions: true });
+  Logger.log('Respuesta de Chat: ' + r.getResponseCode() + (r.getResponseCode() === 200 ? ' ✅ enviado' : ' ❌ ' + r.getContentText().slice(0, 300)));
+}
 function recentEvents(n) {
   const sh = db('eventos'), last = sh.getLastRow();
   if (last < 2) return [];
