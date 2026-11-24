@@ -6,6 +6,14 @@
  * Instalación: ver README.md → "Backend". Luego ejecuta setup() una vez.
  */
 
+/** (Primera función del archivo: queda seleccionada por defecto en el editor.) Ejecutar a mano en el editor: envía un mensaje de prueba al espacio de Google Chat (propiedad GCHAT_WEBHOOK). */
+function probarChat() {
+  const url = prop('GCHAT_WEBHOOK');
+  if (!url) { Logger.log('⚠️ Falta la propiedad GCHAT_WEBHOOK (Configuración del proyecto → Propiedades de secuencia de comandos).'); return; }
+  const r = UrlFetchApp.fetch(url, { method: 'post', contentType: 'application/json; charset=UTF-8', payload: JSON.stringify({ text: '✅ *Prueba del sitio de inversionistas Lanek*\nLas notificaciones están funcionando.' }), muteHttpExceptions: true });
+  Logger.log('Respuesta de Chat: ' + r.getResponseCode() + (r.getResponseCode() === 200 ? ' ✅ enviado' : ' ❌ ' + r.getContentText().slice(0, 300)));
+}
+
 const COLS = {
   contactos: ['email', 'nombre', 'empresa', 'acceso_sitio', 'acceso_dataroom', 'fecha_solicitud_sitio', 'fecha_solicitud_dataroom', 'consentimiento_fecha', 'consentimiento_version', 'origen', 'creado_en'],
   eventos: ['id', 'email', 'tipo_evento', 'seccion', 'duracion_segundos', 'timestamp'],
@@ -139,13 +147,6 @@ function gchat(text) {
   try {
     UrlFetchApp.fetch(url, { method: 'post', contentType: 'application/json; charset=UTF-8', payload: JSON.stringify({ text: text }), muteHttpExceptions: true });
   } catch (e) { console.error('gchat', e); }
-}
-/** Ejecutar a mano en el editor: envía un mensaje de prueba al espacio de Google Chat (propiedad GCHAT_WEBHOOK). */
-function probarChat() {
-  const url = prop('GCHAT_WEBHOOK');
-  if (!url) { Logger.log('⚠️ Falta la propiedad GCHAT_WEBHOOK (Configuración del proyecto → Propiedades de secuencia de comandos).'); return; }
-  const r = UrlFetchApp.fetch(url, { method: 'post', contentType: 'application/json; charset=UTF-8', payload: JSON.stringify({ text: '✅ *Prueba del sitio de inversionistas Lanek*\nLas notificaciones están funcionando.' }), muteHttpExceptions: true });
-  Logger.log('Respuesta de Chat: ' + r.getResponseCode() + (r.getResponseCode() === 200 ? ' ✅ enviado' : ' ❌ ' + r.getContentText().slice(0, 300)));
 }
 function recentEvents(n) {
   const sh = db('eventos'), last = sh.getLastRow();
