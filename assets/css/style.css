@@ -197,3 +197,14 @@ section[id], header[id] { scroll-margin-top: 72px; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @media (max-width: 560px) { .sv-bar { justify-content: center; } .sv-nav { order: -1; width: 100%; justify-content: space-between; } }
 @media (max-width: 480px) { .nav-brand span { display: none; } .nav nav a:not(.btn) { white-space: nowrap; } }
+
+/* ── Admin: historial ── */
+.filters { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin: .8rem 0; }
+.filters input[type=search], .filters select { margin: 0; width: auto; min-width: 220px; flex: 1 1 220px; }
+.filters select { font: inherit; padding: .7rem .9rem; border: 1px solid var(--ink-200); border-radius: 12px; background: #fff; color: var(--ink-800); min-height: 46px; }
+.filters .chk { display: inline-flex; align-items: center; gap: .35rem; font-size: .9rem; white-space: nowrap; }
+.filters .chk input { width: auto; margin: 0; }
+.tlday { margin: 1.2rem 0 .4rem; font: 700 .9rem var(--display); color: var(--ink-500); }
+.tlday::first-letter { text-transform: uppercase; }
+table.tl td { padding: .45rem .7rem; vertical-align: top; }
+table.tl td.tlh { width: 4.2rem; white-space: nowrap; }

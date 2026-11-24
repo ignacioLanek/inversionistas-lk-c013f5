@@ -454,6 +454,23 @@ const ROUTES = {
     if (b.field === 'acceso_dataroom' && b.value === true && !c.acceso_dataroom) { try { avisarAccesoDataroom(c); avisado = true; } catch (e) { console.error(e); } }
     return { ok: true, avisado: avisado };
   },
+  /** Historial cronológico (más nuevo primero), opcionalmente de un correo y/o de los últimos N días. Incluye mensajes directos. */
+  admin_eventos: (b) => {
+    need(b.token, 'admin');
+    const dias = Number(b.dias) || 0, since = dias ? new Date(Date.now() - dias * 86400000) : new Date(0), iso = since.toISOString();
+    const email = b.email ? normEmail(b.email) : '';
+    const quien = {};
+    readAll('contactos').forEach((c) => (quien[normEmail(c.email)] = { nombre: String(c.nombre || ''), empresa: String(c.empresa || '') }));
+    let evs = readEventos(since);
+    readAll('mensajes').forEach((m) => {
+      const ts = m.creado_en instanceof Date ? m.creado_en.toISOString() : String(m.creado_en);
+      if (ts >= iso) evs.push({ id: '', email: normEmail(m.email), tipo_evento: 'mensaje', seccion: String(m.mensaje), duracion_segundos: 0, timestamp: ts });
+    });
+    if (email) evs = evs.filter((e) => e.email === email);
+    evs.sort((x, y) => (x.timestamp < y.timestamp ? 1 : x.timestamp > y.timestamp ? -1 : (Number(y.id) || 0) - (Number(x.id) || 0))); // mismo instante: por fila (orden en que ocurrieron)
+    const lim = Math.min(Number(b.limit) || 3000, 10000);
+    return { total: evs.length, eventos: evs.slice(0, lim).map((e) => Object.assign(e, quien[e.email] || { nombre: '', empresa: '' })) };
+  },
   admin_delete: (b) => { need(b.token, 'admin'); eliminarContacto(normEmail(b.email)); return { ok: true }; },
   admin_contacto: (b) => {
     need(b.token, 'admin');
