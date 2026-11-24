@@ -62,7 +62,7 @@ const svgSlide = (n, t, c) => Buffer.from(`<svg xmlns="http://www.w3.org/2000/sv
 const asFolder = (n) => ({ getId: () => n.id, getName: () => n.name, getParents: () => it(n.parent ? [asFolder(FT[n.parent])] : []),
   getFolders: () => it(Object.values(FT).filter((x) => x.parent === n.id && x.mime === "folder").map(asFolder)),
   getFiles: () => it(Object.values(FT).filter((x) => x.parent === n.id && x.mime !== "folder").map(asFile)) });
-const asFile = (n) => ({ getId: () => n.id, getName: () => n.name, getMimeType: () => n.mime, getSize: () => pdf.length, getLastUpdated: () => new Date(),
+const asFile = (n) => ({ getId: () => n.id, getName: () => n.name, getMimeType: () => n.mime, getSize: () => pdf.length, getLastUpdated: () => new Date(), isTrashed: () => false,
   getParents: () => it([asFolder(FT[n.parent])]), getBlob: () => ({ getBytes: () => [...(n.data || pdf)], getContentType: () => n.mime }), getAs: () => ({ getBytes: () => [...pdf] }) });
 const it = (arr) => { let i = 0; return { hasNext: () => i < arr.length, next: () => arr[i++] }; };
 

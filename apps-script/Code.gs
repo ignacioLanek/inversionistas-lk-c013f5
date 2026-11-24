@@ -8,7 +8,16 @@
 
 
 /** (Primera función del archivo: queda seleccionada por defecto en el editor; basta presionar Run.)
- *  Prueba los avisos: mensaje a Google Chat + correos de ejemplo (código y acceso aprobado) a tu casilla. También reinstala los triggers. */
+ *  Limpia la caché (contenido y diapositivas) y muestra qué diapositivas entrega el sitio por sección. No envía nada. */
+function revisar() {
+  limpiarCache();
+  const deck = deckSlides(), fid = prop('DECK_FOLDER_ID'), nombres = {};
+  if (fid) { const it = DriveApp.getFolderById(fid).getFiles(); while (it.hasNext()) { const f = it.next(); if (!f.isTrashed()) nombres[f.getId()] = f.getName() + ' (' + Utilities.formatDate(f.getLastUpdated(), Session.getScriptTimeZone(), 'dd-MM HH:mm') + ')'; } }
+  Object.keys(deck).forEach((sec) => Logger.log(sec + ': ' + deck[sec].map((d, i) => (i + 1) + '=' + (nombres[d.id] || d.id + ' ⚠️ no está en la carpeta')).join(' · ')));
+  Logger.log('✅ Caché limpia: los cambios ya se ven en el sitio (recarga la página).');
+}
+
+/** Prueba los avisos: mensaje a Google Chat + correos de ejemplo (código y acceso aprobado) a tu casilla. También reinstala los triggers. */
 function probarAvisos() {
   const yo = Session.getEffectiveUser().getEmail();
   const url = prop('GCHAT_WEBHOOK');
@@ -592,7 +601,7 @@ function deckSlides() {
   const cache = CacheService.getScriptCache(), hit = cache.get('deck_v2');
   if (hit) return JSON.parse(hit);
   const files = {}, fid = prop('DECK_FOLDER_ID'), out = {};
-  if (fid) { const it = DriveApp.getFolderById(fid).getFiles(); while (it.hasNext()) { const f = it.next(); files[f.getName()] = { id: f.getId(), k: f.getId().slice(-10) + '-' + f.getLastUpdated().getTime() }; } }
+  if (fid) { const it = DriveApp.getFolderById(fid).getFiles(); while (it.hasNext()) { const f = it.next(); if (f.isTrashed()) continue; files[f.getName()] = { id: f.getId(), k: f.getId().slice(-10) + '-' + f.getLastUpdated().getTime() }; } }
   readAll('diapositivas').forEach((r) => {
     const sec = String(r.seccion).trim(), f = files[String(r.imagen).trim()];
     if (!sec || !f) return;
