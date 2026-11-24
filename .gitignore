@@ -4,3 +4,4 @@ node_modules/
 dev/demo.pdf
 .DS_Store
 tsconfig.tsbuildinfo
+dev/deck-work/
