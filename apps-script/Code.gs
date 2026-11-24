@@ -576,15 +576,15 @@ function resumenDiario() {
 /** Detecta reservas nuevas de la página de citas de Google Calendar y las registra como reunion_agendada. */
 function revisarReuniones() {
   const last = Number(prop('LAST_CAL_CHECK', String(Date.now() - 3600000)));
-  const me = normEmail(Session.getEffectiveUser().getEmail()), filtro = prop('CAL_TITLE_FILTER').toLowerCase();
+  const me = normEmail(Session.getEffectiveUser().getEmail()), filtro = prop('CAL_TITLE_FILTER', 'Lanek Invest').toLowerCase();
   CalendarApp.getDefaultCalendar().getEvents(new Date(Date.now() - 86400000), new Date(Date.now() + 120 * 86400000)).forEach((ev) => {
     if (ev.getDateCreated().getTime() <= last) return;
     ev.getGuestList().forEach((g) => {
       const email = normEmail(g.getEmail());
       if (!validEmail(email) || email === me) return;
-      if (filtro && ev.getTitle().toLowerCase().indexOf(filtro) < 0) return; // opcional: propiedad CAL_TITLE_FILTER (título de tu página de citas)
-      if (!getContacto(email)) return; // solo prospectos que ya ingresaron al sitio; nunca crea contactos desde el calendario
-      registrar(email, 'reunion_agendada', { dedupeMin: 10 });
+      if (filtro && ev.getTitle().toLowerCase().indexOf(filtro) < 0) return; // solo reservas de la página de citas (CAL_TITLE_FILTER, por defecto "Lanek Invest")
+      if (getContacto(email)) registrar(email, 'reunion_agendada', { dedupeMin: 10 });
+      else gchat('📅 *Reunión agendada* (aún no ingresa al sitio)\n' + (g.getName() || '') + ' <' + email + '>\n' + ev.getTitle() + ' · ' + Utilities.formatDate(ev.getStartTime(), Session.getScriptTimeZone(), 'dd-MM-yyyy HH:mm')); // nunca crea contactos desde el calendario
     });
   });
   props().setProperty('LAST_CAL_CHECK', String(Date.now()));

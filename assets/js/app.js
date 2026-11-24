@@ -373,8 +373,11 @@ function initMeeting() {
     const cal = $("#cal");
     cal.hidden = false;
     cal.innerHTML = LK.CAL_URL
-      ? `<iframe src="${esc(LK.CAL_URL)}" title="Agenda de reunión" loading="lazy"></iframe>`
+      ? `<div class="calbox"><div class="calload">${loaderHTML("Cargando horarios disponibles…")}</div><iframe src="${esc(LK.CAL_URL)}" title="Agenda de reunión con Lanek"></iframe></div>
+         <p class="muted calalt">¿No ves los horarios? <a href="${esc(LK.CAL_LINK || LK.CAL_URL)}" target="_blank" rel="noopener">Abrir la agenda en una pestaña nueva ↗</a></p>`
       : '<p class="err">Configura CAL_URL en assets/js/config.js</p>';
+    const fr = $("iframe", cal);
+    if (fr) fr.addEventListener("load", () => { const l = $(".calload", cal); if (l) l.remove(); });
     $("#cta-actions").hidden = true;
   });
   $("#btn-msg").addEventListener("click", () => { $("#msg-form").hidden = false; $("#cta-actions").hidden = true; });
