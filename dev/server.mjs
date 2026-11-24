@@ -44,7 +44,7 @@ const mkSheet = (name) => {
     appendRow(a) { sh.rows[sh.getLastRow()] = a; }, deleteRow(r) { sh.rows.splice(r - 1, 1); }, setFrozenRows() {} };
   return sh;
 };
-const ss = { getSheetByName: (n) => sheets.get(n) || null, insertSheet: (n) => (sheets.set(n, mkSheet(n)), sheets.get(n)) };
+const ss = { getId: () => "sheet-dev", getSheetByName: (n) => sheets.get(n) || null, insertSheet: (n) => (sheets.set(n, mkSheet(n)), sheets.get(n)) };
 
 /* ── Drive simulado: Data room / (Finanzas, Legal) con el PDF de demo ── */
 const pdf = fs.existsSync(path.join(root, process.env.DEMO_PDF || "dev/demo.pdf")) ? fs.readFileSync(path.join(root, process.env.DEMO_PDF || "dev/demo.pdf")) : Buffer.from("%PDF-1.4\n%%EOF");
@@ -85,11 +85,11 @@ const sandbox = {
     DigestAlgorithm: { SHA_256: 1 },
     newBlob: (bytes) => ({ getDataAsString: () => Buffer.from(bytes).toString("utf8") }),
   },
-  MailApp: { sendEmail: (m) => { const c = m.htmlBody.match(/>(\d{6})</)?.[1]; console.log(`[correo → ${m.to}] código: ${c}`); sandbox.__lastCode = c; } },
+  MailApp: { getRemainingDailyQuota: () => 1500, sendEmail: (m) => { const c = m.htmlBody.match(/>(\d{6})</)?.[1]; console.log(`[correo → ${m.to}] ${m.subject}${c ? " · código: " + c : ""}`); sandbox.__lastCode = c; } },
   UrlFetchApp: { fetch: (u, o) => console.log("[gchat]", JSON.parse(o.payload).text.replace(/\n/g, " | ")) },
   ContentService: { MimeType: { JSON: "json" }, createTextOutput: (t) => ({ t, setMimeType() { return this; } }) },
   DriveApp: { getFolderById: (id) => asFolder(FT[id]), getFileById: (id) => asFile(FT[id]) },
-  ScriptApp: { getProjectTriggers: () => [], deleteTrigger() {}, newTrigger: () => { const t = { timeBased: () => t, atHour: () => t, everyDays: () => t, everyMinutes: () => t, everyHours: () => t, create() {} }; return t; } },
+  ScriptApp: { getProjectTriggers: () => [], deleteTrigger() {}, newTrigger: () => { const t = { forSpreadsheet: () => t, onEdit: () => t, timeBased: () => t, atHour: () => t, everyDays: () => t, everyMinutes: () => t, everyHours: () => t, create() {} }; return t; } },
   CalendarApp: { getDefaultCalendar: () => ({ getEvents: () => [] }) },
   Session: { getEffectiveUser: () => ({ getEmail: () => "owner@lanek.cl" }) },
   Logger: { log: console.log },

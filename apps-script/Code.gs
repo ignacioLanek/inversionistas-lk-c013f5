@@ -6,12 +6,22 @@
  * Instalación: ver README.md → "Backend". Luego ejecuta setup() una vez.
  */
 
-/** (Primera función del archivo: queda seleccionada por defecto en el editor.) Ejecutar a mano en el editor: envía un mensaje de prueba al espacio de Google Chat (propiedad GCHAT_WEBHOOK). */
-function probarChat() {
+
+/** (Primera función del archivo: queda seleccionada por defecto en el editor; basta presionar Run.)
+ *  Prueba los avisos: mensaje a Google Chat + correos de ejemplo (código y acceso aprobado) a tu casilla. También reinstala los triggers. */
+function probarAvisos() {
+  const yo = Session.getEffectiveUser().getEmail();
   const url = prop('GCHAT_WEBHOOK');
-  if (!url) { Logger.log('⚠️ Falta la propiedad GCHAT_WEBHOOK (Configuración del proyecto → Propiedades de secuencia de comandos).'); return; }
-  const r = UrlFetchApp.fetch(url, { method: 'post', contentType: 'application/json; charset=UTF-8', payload: JSON.stringify({ text: '✅ *Prueba del sitio de inversionistas Lanek*\nLas notificaciones están funcionando.' }), muteHttpExceptions: true });
-  Logger.log('Respuesta de Chat: ' + r.getResponseCode() + (r.getResponseCode() === 200 ? ' ✅ enviado' : ' ❌ ' + r.getContentText().slice(0, 300)));
+  if (!url) Logger.log('⚠️ Falta la propiedad GCHAT_WEBHOOK.');
+  else {
+    const r = UrlFetchApp.fetch(url, { method: 'post', contentType: 'application/json; charset=UTF-8', payload: JSON.stringify({ text: '✅ *Prueba del sitio de inversionistas Lanek*\nLas notificaciones están funcionando.' }), muteHttpExceptions: true });
+    Logger.log('Chat: ' + r.getResponseCode() + (r.getResponseCode() === 200 ? ' ✅ enviado' : ' ❌ ' + r.getContentText().slice(0, 300)));
+  }
+  correoCodigo(yo, '123456', true);
+  avisarAccesoDataroom({ email: yo, nombre: 'Ignacio' }, true);
+  Logger.log('Correos de prueba enviados a ' + yo + ' ✅ · cuota restante hoy: ' + MailApp.getRemainingDailyQuota());
+  instalarTriggers();
+  Logger.log('Triggers: ' + ScriptApp.getProjectTriggers().map((t) => t.getHandlerFunction()).join(', '));
 }
 
 const COLS = {
@@ -203,6 +213,42 @@ function notificar(email, tipo, seccion) {
   else if (tipo === 'documento_abierto' && seccion && isSensitive(seccion)) gchat('⚠️ *Documento sensible abierto*\n' + seccion + '\n' + quien);
 }
 
+/* ───────────── correos ───────────── */
+const SITE_URL = () => prop('SITE_URL', 'https://ignaciolanek.github.io/inversionistas-lk-c013f5/');
+const htmlEsc = (t) => String(t == null ? '' : t).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+function plantilla(titulo, cuerpo) {
+  return '<div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;color:#1f3a64;line-height:1.5">' +
+    '<h2 style="color:#1170ee;margin:0 0 14px;font-size:22px">' + titulo + '</h2>' + cuerpo +
+    '<p style="color:#8a99b0;font-size:12px;margin-top:28px;border-top:1px solid #dde3ec;padding-top:12px">Lanek · Salud más allá del Hospital</p></div>';
+}
+function enviar(to, asunto, titulo, cuerpo, prueba) {
+  MailApp.sendEmail({ to: to, subject: (prueba ? '[Prueba] ' : '') + asunto, name: 'Lanek', replyTo: prop('REPLY_TO', Session.getEffectiveUser().getEmail()), htmlBody: plantilla(titulo, cuerpo) });
+}
+function correoCodigo(email, code, prueba) {
+  enviar(email, 'Tu código de acceso al data room de Lanek: ' + code, 'Lanek · Data room',
+    '<p>Usa este código para acceder. Vence en 10 minutos.</p><p style="font-size:32px;letter-spacing:6px;font-weight:700;color:#0b1b3a;margin:12px 0">' + code + '</p><p style="color:#5b6f8f">Si no lo solicitaste, ignora este correo.</p>', prueba);
+}
+/** Avisa al prospecto que su acceso al data room fue aprobado (desde el panel admin o marcando la casilla en la hoja). */
+function avisarAccesoDataroom(c, prueba) {
+  enviar(c.email, 'Tu acceso al data room de Lanek fue aprobado', 'Acceso aprobado',
+    '<p>Hola' + (c.nombre ? ' ' + htmlEsc(String(c.nombre).split(' ')[0]) : '') + ',</p>' +
+    '<p>Ya puedes revisar el data room de Lanek. Al entrar te enviaremos un código de 6 dígitos a este correo para confirmar que eres tú.</p>' +
+    '<p style="margin:22px 0"><a href="' + SITE_URL() + '#dataroom" style="display:inline-block;background:#1170ee;color:#ffffff;padding:12px 24px;border-radius:999px;text-decoration:none;font-weight:bold">Entrar al data room</a></p>' +
+    '<p style="color:#5b6f8f">Si tienes cualquier duda, responde este correo.</p>', prueba);
+}
+/** Trigger al editar la hoja: si se marca acceso_dataroom en "contactos", avisa al prospecto por correo. */
+function alEditarHoja(e) {
+  try {
+    const r = e && e.range;
+    if (!r || r.getSheet().getName() !== 'contactos' || r.getNumRows() !== 1 || r.getNumColumns() !== 1) return;
+    if (r.getColumn() !== COLS.contactos.indexOf('acceso_dataroom') + 1 || r.getRow() < 2) return;
+    if (String(e.value).toUpperCase() !== 'TRUE' || String(e.oldValue).toUpperCase() === 'TRUE') return;
+    const email = normEmail(r.getSheet().getRange(r.getRow(), 1).getValue());
+    const c = getContacto(email);
+    if (c) avisarAccesoDataroom(c);
+  } catch (err) { console.error(err); }
+}
+
 /* ───────────── HTTP ───────────── */
 function doGet() { return out({ ok: true, servicio: 'lanek-inversionistas' }); }
 function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
@@ -313,12 +359,7 @@ const ROUTES = {
     if (readAll('otp').filter((r) => r.email === email && String(r.creado_en) >= since).length >= 5) throw new Error('LIMIT:Demasiados intentos. Prueba en una hora.');
     const code = ('000000' + Math.floor(Math.random() * 1000000)).slice(-6);
     append('otp', { email: email, code_hash: otpHash(email, code), expira: new Date(Date.now() + 600000).toISOString(), intentos: 0, usado: false, creado_en: nowIso() });
-    MailApp.sendEmail({
-      to: email,
-      subject: 'Tu código de acceso al data room de Lanek: ' + code,
-      name: 'Lanek',
-      htmlBody: '<div style="font-family:Arial,sans-serif;max-width:420px"><h2 style="color:#1170ee;margin:0 0 8px">Lanek · Data room</h2><p>Usa este código para acceder. Vence en 10 minutos.</p><p style="font-size:32px;letter-spacing:6px;font-weight:700;color:#0b1b3a">' + code + '</p><p style="color:#667">Si no lo solicitaste, ignora este correo.</p></div>',
-    });
+    correoCodigo(email, code);
     return { status: 'sent' };
   },
   dr_otp_verify: (b) => {
@@ -400,7 +441,9 @@ const ROUTES = {
     const c = getContacto(normEmail(b.email));
     if (!c) return { error: 'No existe' };
     setCell('contactos', c._row, b.field, b.value === true);
-    return { ok: true };
+    let avisado = false;
+    if (b.field === 'acceso_dataroom' && b.value === true && !c.acceso_dataroom) { try { avisarAccesoDataroom(c); avisado = true; } catch (e) { console.error(e); } }
+    return { ok: true, avisado: avisado };
   },
   admin_delete: (b) => { need(b.token, 'admin'); eliminarContacto(normEmail(b.email)); return { ok: true }; },
   admin_contacto: (b) => {
@@ -625,6 +668,7 @@ function instalarTriggers() {
   ScriptApp.newTrigger('resumenDiario').timeBased().atHour(Number(prop('SUMMARY_HOUR', '18'))).everyDays(1).create();
   ScriptApp.newTrigger('revisarReuniones').timeBased().everyMinutes(10).create();
   ScriptApp.newTrigger('reconstruirIndice').timeBased().everyHours(1).create(); // mantiene tibio el índice del data room
+  ScriptApp.newTrigger('alEditarHoja').forSpreadsheet(prop('SHEET_ID') || SpreadsheetApp.getActiveSpreadsheet().getId()).onEdit().create(); // correo al aprobar el data room desde la hoja
 }
 /** Carga el contenido inicial de las secciones. Con overwrite=true reemplaza lo existente. */
 function seedContenido(overwrite) {

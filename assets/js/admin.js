@@ -40,7 +40,8 @@ async function list() {
   $("#agg").onclick = () => agregado(30);
   app.querySelectorAll("[data-f]").forEach((b) => (b.onclick = async () => {
     b.disabled = true;
-    await call("admin_set", { email: b.dataset.e, field: b.dataset.f, value: b.dataset.v !== "true" });
+    const r = await call("admin_set", { email: b.dataset.e, field: b.dataset.f, value: b.dataset.v !== "true" });
+    if (r && r.avisado) alert("Acceso aprobado. Le enviamos un correo a " + b.dataset.e + " avisándole que ya puede entrar al data room.");
     list();
   }));
   app.querySelectorAll("[data-c]").forEach((a) => (a.onclick = (e) => { e.preventDefault(); contacto(a.dataset.c); }));
