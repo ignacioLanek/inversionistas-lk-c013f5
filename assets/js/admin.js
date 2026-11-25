@@ -85,17 +85,19 @@ async function historial(email) {
 
 function login(msg = "") {
   app.innerHTML = `<form id="f" class="card gate" style="margin:10vh auto"><h1>Admin · Lanek</h1>
-    <input type="password" id="pw" placeholder="Contraseña" autofocus /><p class="err">${esc(msg)}</p><button class="btn">Entrar</button></form>`;
+    <input type="password" id="pw" placeholder="Contraseña" autofocus /><p class="err">${esc(msg)}</p><button class="btn">Entrar</button>
+    <p style="text-align:center;margin:1rem 0 0"><a href="index.html">← Volver al sitio</a></p></form>`;
   $("#f").onsubmit = async (e) => {
     e.preventDefault();
-    const r = await api("admin_login", { password: $("#pw").value });
+    setBusy($("button", app), true, "Entrando…");
+    const r = await api("admin_login", { password: $("#pw").value }).catch(() => ({ error: "Error de conexión" }));
     if (r.error) return login(r.error);
     store.set("lk_admin", r.token, true);
     list();
   };
 }
 
-const bar = (right = "") => `<header class="adminbar"><h1 style="color:var(--ink-900)">Inversionistas · Admin</h1><nav>${right}
+const bar = (right = "") => `<header class="adminbar"><h1 style="color:var(--ink-900)">Inversionistas · Admin</h1><nav><a class="pill" href="index.html">← Sitio</a>${right}
   <button class="pill" id="out">Salir</button></nav></header>`;
 /* Carga con indicador; si falla muestra el error con «Reintentar» (antes volvía a la lista sin avisar). */
 async function cargar(titulo, accion, datos, reintentar) {
