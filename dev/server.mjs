@@ -72,7 +72,7 @@ const cacheStore = new Map();
 const sandbox = {
   console, Date, Math, JSON, String, Number, Object, Array, RegExp, Error, Set, Promise,
   SpreadsheetApp: { getActiveSpreadsheet: () => ss, openById: () => ss },
-  PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => propsStore[k] ?? null, setProperty: (k, v) => (propsStore[k] = v) }) },
+  PropertiesService: { getScriptProperties: () => ({ getProperties: () => ({ ...propsStore }), getProperty: (k) => propsStore[k] ?? null, setProperty: (k, v) => (propsStore[k] = v) }) },
   LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
   CacheService: { getScriptCache: () => ({ get: (k) => cacheStore.get(k) ?? null, put: (k, v) => cacheStore.set(k, v), remove: (k) => cacheStore.delete(k), removeAll: (ks) => ks.forEach((k) => cacheStore.delete(k)), getAll: (ks) => Object.fromEntries(ks.map((k) => [k, cacheStore.get(k) ?? null])) }) },
   Utilities: {

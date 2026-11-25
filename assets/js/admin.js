@@ -50,11 +50,8 @@ function csv(evs) {
 /* ── Vista: historial general (o de un correo) con filtros ── */
 const H = { dias: 30, q: "", tipo: "", hitos: false, equipo: false, max: 300 };
 async function historial(email) {
-  app.innerHTML = bar('<button class="pill" id="back">← Contactos</button>') + `<h2>${email ? "Historial de " + esc(email) : "Historial general"}</h2><div class="loader"><span class="spin"></span><p class="lmsg">Cargando eventos…</p></div>`;
-  wireOut(); $("#back").onclick = list;
-  const r = await call("admin_eventos", { dias: H.dias, email: email || "" });
-  if (r.auth) return login("Sesión expirada");
-  if (r.error) return (app.innerHTML = `<p class="err">${esc(r.error)}</p>`);
+  const r = await cargar(email ? "Historial de " + esc(email) : "Historial general", "admin_eventos", { dias: H.dias, email: email || "" }, () => historial(email));
+  if (!r) return;
   const all = r.eventos;
   const tipos = [...new Set(all.map((e) => e.tipo_evento))].sort((a, b) => evLabel(a)[1].localeCompare(evLabel(b)[1], "es"));
   app.innerHTML = bar('<button class="pill" id="back">← Contactos</button>') +
@@ -100,12 +97,26 @@ function login(msg = "") {
 
 const bar = (right = "") => `<header class="adminbar"><h1 style="color:var(--ink-900)">Inversionistas · Admin</h1><nav>${right}
   <button class="pill" id="out">Salir</button></nav></header>`;
+/* Carga con indicador; si falla muestra el error con «Reintentar» (antes volvía a la lista sin avisar). */
+async function cargar(titulo, accion, datos, reintentar) {
+  app.innerHTML = bar('<button class="pill" id="back">← Contactos</button>') + `<h2>${titulo}</h2>` + loaderHTML("Cargando…");
+  wireOut(); $("#back").onclick = list;
+  const stop = slowHint(app);
+  const r = await call(accion, datos).catch(() => ({ error: "Error de conexión" }));
+  stop();
+  if (r.auth) { login("Sesión expirada"); return null; }
+  if (r.error) {
+    app.innerHTML = bar('<button class="pill" id="back">← Contactos</button>') + `<h2>${titulo}</h2><p class="err">No se pudo cargar: ${esc(r.error)}</p><button class="pill" id="retry">Reintentar</button>`;
+    wireOut(); $("#back").onclick = list; $("#retry").onclick = reintentar;
+    return null;
+  }
+  return r;
+}
 function wireOut() { $("#out").onclick = () => { store.del("lk_admin", true); login(); }; }
 
 async function list() {
-  const r = await call("admin_list").catch(() => ({ error: "Error de conexión" }));
-  if (r.auth) return login("Sesión expirada");
-  if (r.error) return (app.innerHTML = `<p class="err">${esc(r.error)}</p>`);
+  const r = await cargar("Contactos", "admin_list", {}, list);
+  if (!r) return;
   const equipo = r.contactos.filter((c) => c.interno).length;
   r.contactos = r.contactos.filter((c) => !c.interno).concat(r.contactos.filter((c) => c.interno)); // equipo al final
   const pend = r.contactos.filter((c) => !c.interno && (c.fecha_solicitud_sitio && !c.acceso_sitio) || (c.fecha_solicitud_dataroom && !c.acceso_dataroom)).length;
@@ -131,8 +142,10 @@ async function list() {
 }
 
 async function contacto(email) {
-  const [r, h] = await Promise.all([call("admin_contacto", { email }), call("admin_eventos", { email, dias: 0 }).catch(() => ({}))]);
-  if (r.error) return list();
+  const hP = call("admin_eventos", { email, dias: 0 }).catch(() => ({}));
+  const r = await cargar(esc(email), "admin_contacto", { email }, () => contacto(email));
+  if (!r) return;
+  const h = await hP;
   const ev = r.eventos, visitas = ev.filter((e) => ["primer_ingreso", "ingreso_recurrente"].includes(e.tipo_evento));
   const secs = {};
   ev.filter((e) => e.tipo_evento === "seccion_vista").forEach((e) => { const s = (secs[e.seccion] ||= { seg: 0, n: 0 }); s.seg += e.duracion_segundos; s.n++; });
@@ -160,8 +173,8 @@ async function contacto(email) {
 }
 
 async function agregado(dias) {
-  const r = await call("admin_agregado", { dias });
-  if (r.error) return list();
+  const r = await cargar(`Vista agregada · últimos ${dias} días`, "admin_agregado", { dias }, () => agregado(dias));
+  if (!r) return;
   const by = Object.fromEntries(r.secciones.map((s) => [s.nombre, s]));
   const ids = [...new Set([...Object.keys(TITLES), ...Object.keys(by)])];
   const rows = ids.map((id) => ({ id, ...(by[id] || { seg: 0, vistas: 0, personas: 0 }) })).sort((a, b) => b.seg - a.seg);

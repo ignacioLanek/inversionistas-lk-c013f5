@@ -47,7 +47,9 @@ const CLIENT_EVENTS = ['ingreso_recurrente', 'video_play', 'video_progreso', 'vi
 
 /* ───────────── utilidades ───────────── */
 const props = () => PropertiesService.getScriptProperties();
-const prop = (k, d) => props().getProperty(k) || d || '';
+let _P = null; // propiedades leídas UNA vez por ejecución (cada getProperty es una llamada lenta)
+const prop = (k, d) => (_P || (_P = props().getProperties()))[k] || d || '';
+const setProp = (k, v) => { props().setProperty(k, v); if (_P) _P[k] = String(v); };
 const nowIso = () => new Date().toISOString();
 const normEmail = (e) => String(e || '').trim().toLowerCase();
 const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e) && e.length <= 254;
@@ -112,7 +114,7 @@ function upsertContacto(email, patch) {
 /* ───────────── sesiones firmadas (HMAC) ───────────── */
 function secret() {
   let s = prop('SESSION_SECRET');
-  if (!s) { s = Utilities.getUuid() + Utilities.getUuid() + Utilities.getUuid(); props().setProperty('SESSION_SECRET', s); }
+  if (!s) { s = Utilities.getUuid() + Utilities.getUuid() + Utilities.getUuid(); setProp('SESSION_SECRET', s); }
   return s;
 }
 function hmac(data) {
@@ -209,11 +211,11 @@ function registrarVarios(email, lista) {
   return lista.length;
 }
 /** Equipo Lanek: no genera avisos ni cuenta en estadísticas. Por defecto todo @lanek.cl (propiedades INTERNAL_DOMAINS / INTERNAL_EMAILS, separadas por comas). */
+let _INT = null;
 function esInterno(email) {
+  if (!_INT) _INT = { doms: prop('INTERNAL_DOMAINS', 'lanek.cl').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean), mails: prop('INTERNAL_EMAILS', '').split(',').map(normEmail).filter(Boolean) };
   const e = normEmail(email), dom = e.split('@')[1] || '';
-  const doms = prop('INTERNAL_DOMAINS', 'lanek.cl').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
-  const mails = prop('INTERNAL_EMAILS', '').split(',').map(normEmail).filter(Boolean);
-  return doms.indexOf(dom) >= 0 || mails.indexOf(e) >= 0;
+  return _INT.doms.indexOf(dom) >= 0 || _INT.mails.indexOf(e) >= 0;
 }
 function notificar(email, tipo, seccion) {
   if (esInterno(email)) return; // el equipo no se notifica a sí mismo
@@ -646,7 +648,7 @@ function prepararDeck() {
   if (!prop('DECK_FOLDER_ID')) { // la carpeta se crea a mano en Drive (el script solo lee Drive, no necesita permiso de escritura)
     const it = DriveApp.getFoldersByName('02 Deck sitio web');
     if (!it.hasNext()) throw new Error('Crea en Drive la carpeta "02 Deck sitio web" y vuelve a ejecutar.');
-    props().setProperty('DECK_FOLDER_ID', it.next().getId());
+    setProp('DECK_FOLDER_ID', it.next().getId());
   }
   limpiarCache();
   Logger.log('Carpeta de diapositivas: https://drive.google.com/drive/folders/' + prop('DECK_FOLDER_ID'));
@@ -675,7 +677,7 @@ function revisarReuniones() {
       else gchat('📅 *Reunión agendada* (aún no ingresa al sitio)\n' + (g.getName() || '') + ' <' + email + '>\n' + ev.getTitle() + ' · ' + Utilities.formatDate(ev.getStartTime(), Session.getScriptTimeZone(), 'dd-MM-yyyy HH:mm')); // nunca crea contactos desde el calendario
     });
   });
-  props().setProperty('LAST_CAL_CHECK', String(Date.now()));
+  setProp('LAST_CAL_CHECK', String(Date.now()));
 }
 
 /* ───────────── instalación (ejecutar UNA vez) ───────────── */
@@ -691,9 +693,9 @@ function setup() {
   seedContenido(false);
   asegurarFit();
   secret();
-  if (!prop('ADMIN_PASSWORD')) props().setProperty('ADMIN_PASSWORD', Utilities.getUuid().slice(0, 13));
-  if (!prop('SUMMARY_HOUR')) props().setProperty('SUMMARY_HOUR', '18');
-  if (!prop('SENSITIVE_REGEX')) props().setProperty('SENSITIVE_REGEX', 'ucc|contrato|financier|balance|estados? financ');
+  if (!prop('ADMIN_PASSWORD')) setProp('ADMIN_PASSWORD', Utilities.getUuid().slice(0, 13));
+  if (!prop('SUMMARY_HOUR')) setProp('SUMMARY_HOUR', '18');
+  if (!prop('SENSITIVE_REGEX')) setProp('SENSITIVE_REGEX', 'ucc|contrato|financier|balance|estados? financ');
   instalarTriggers();
   const faltan = ['DRIVE_ROOT_ID', 'GCHAT_WEBHOOK'].filter((k) => !prop(k));
   Logger.log('✅ Listo. ADMIN_PASSWORD actual: ' + prop('ADMIN_PASSWORD') + ' (cámbiala en Configuración del proyecto → Propiedades de secuencia de comandos).');
