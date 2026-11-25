@@ -208,3 +208,5 @@ section[id], header[id] { scroll-margin-top: 72px; }
 .tlday::first-letter { text-transform: uppercase; }
 table.tl td { padding: .45rem .7rem; vertical-align: top; }
 table.tl td.tlh { width: 4.2rem; white-space: nowrap; }
+.tmchip { font-size: .7rem; padding: .1rem .5rem; margin-left: .3rem; vertical-align: middle; }
+tr.tm td { background: var(--ink-050); }

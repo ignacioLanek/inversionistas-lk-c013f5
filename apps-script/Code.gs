@@ -208,7 +208,15 @@ function registrarVarios(email, lista) {
   lista.forEach((o) => { try { notificar(email, o.tipo, o.seccion); } catch (e) { console.error(e); } });
   return lista.length;
 }
+/** Equipo Lanek: no genera avisos ni cuenta en estadísticas. Por defecto todo @lanek.cl (propiedades INTERNAL_DOMAINS / INTERNAL_EMAILS, separadas por comas). */
+function esInterno(email) {
+  const e = normEmail(email), dom = e.split('@')[1] || '';
+  const doms = prop('INTERNAL_DOMAINS', 'lanek.cl').split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+  const mails = prop('INTERNAL_EMAILS', '').split(',').map(normEmail).filter(Boolean);
+  return doms.indexOf(dom) >= 0 || mails.indexOf(e) >= 0;
+}
 function notificar(email, tipo, seccion) {
+  if (esInterno(email)) return; // el equipo no se notifica a sí mismo
   if (NOTIFICA.indexOf(tipo) < 0) return; // evita leer la hoja en cada evento de seguimiento
   if (tipo === 'documento_abierto' && !(seccion && isSensitive(seccion))) return;
   const c = getContacto(email) || {};
@@ -342,10 +350,10 @@ const ROUTES = {
     if (txt.length < 3) return { error: 'Mensaje vacío' };
     append('mensajes', { email: email, mensaje: txt, creado_en: nowIso() });
     const c = getContacto(email) || {};
-    gchat('✉️ *Mensaje directo*\n' + (c.nombre || '') + ' <' + email + '>\n> ' + txt);
+    if (!esInterno(email)) gchat('✉️ *Mensaje directo*\n' + (c.nombre || '') + ' <' + email + '>\n> ' + txt);
     return { ok: true };
   },
-  privacy_delete: (b) => { const email = need(b.token, 'site'); eliminarContacto(email); gchat('🗑️ Un contacto ejerció su derecho de eliminación de datos (registro borrado).'); return { ok: true }; },
+  privacy_delete: (b) => { const email = need(b.token, 'site'); eliminarContacto(email); if (!esInterno(email)) gchat('🗑️ Un contacto ejerció su derecho de eliminación de datos (registro borrado).'); return { ok: true }; },
 
   /* ── data room ── */
   dr_request: (b) => {
@@ -442,7 +450,7 @@ const ROUTES = {
       if (e.tipo_evento === 'primer_ingreso' || e.tipo_evento === 'ingreso_recurrente') a.visitas++;
       if (e.timestamp > a.last) a.last = e.timestamp;
     });
-    return { contactos: readAll('contactos').map((c) => Object.assign(plain(c), { acceso_sitio: bool(c.acceso_sitio), acceso_dataroom: bool(c.acceso_dataroom) }, { agg: agg[c.email] || { seg: 0, visitas: 0, last: '' } })) };
+    return { contactos: readAll('contactos').map((c) => Object.assign(plain(c), { acceso_sitio: bool(c.acceso_sitio), acceso_dataroom: bool(c.acceso_dataroom) }, { agg: agg[c.email] || { seg: 0, visitas: 0, last: '' }, interno: esInterno(c.email) })) };
   },
   admin_set: (b) => {
     need(b.token, 'admin');
@@ -469,7 +477,7 @@ const ROUTES = {
     if (email) evs = evs.filter((e) => e.email === email);
     evs.sort((x, y) => (x.timestamp < y.timestamp ? 1 : x.timestamp > y.timestamp ? -1 : (Number(y.id) || 0) - (Number(x.id) || 0))); // mismo instante: por fila (orden en que ocurrieron)
     const lim = Math.min(Number(b.limit) || 3000, 10000);
-    return { total: evs.length, eventos: evs.slice(0, lim).map((e) => Object.assign(e, quien[e.email] || { nombre: '', empresa: '' })) };
+    return { total: evs.length, eventos: evs.slice(0, lim).map((e) => Object.assign(e, quien[e.email] || { nombre: '', empresa: '' }, { interno: esInterno(e.email) })) };
   },
   admin_delete: (b) => { need(b.token, 'admin'); eliminarContacto(normEmail(b.email)); return { ok: true }; },
   admin_contacto: (b) => {
@@ -504,6 +512,7 @@ function eliminarContacto(email) {
   });
 }
 function resumen(evs) {
+  evs = evs.filter((e) => !esInterno(e.email)); // estadísticas solo de prospectos
   const sec = {}, docs = {}, vis = {}, volvieron = {}, active = {}, v = { play: {}, p25: {}, p50: {}, p75: {}, p100: {}, audio: {} }, fit = { llegaron: {}, abrieron: {}, cta: {}, seg: 0 };
   let total = 0;
   evs.forEach((e) => {
@@ -660,6 +669,7 @@ function revisarReuniones() {
       const email = normEmail(g.getEmail());
       if (!validEmail(email) || email === me) return;
       if (filtro && ev.getTitle().toLowerCase().indexOf(filtro) < 0) return; // solo reservas de la página de citas (CAL_TITLE_FILTER, por defecto "Lanek Invest")
+      if (esInterno(email)) return; // invitados del equipo
       if (getContacto(email)) registrar(email, 'reunion_agendada', { dedupeMin: 10 });
       else gchat('📅 *Reunión agendada* (aún no ingresa al sitio)\n' + (g.getName() || '') + ' <' + email + '>\n' + ev.getTitle() + ' · ' + Utilities.formatDate(ev.getStartTime(), Session.getScriptTimeZone(), 'dd-MM-yyyy HH:mm')); // nunca crea contactos desde el calendario
     });

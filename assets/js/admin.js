@@ -35,7 +35,7 @@ function timeline(evs, conPersona) {
     if (d !== dia) { if (dia) out += "</tbody></table></div>"; dia = d; out += `<h4 class="tlday">${esc(d)}</h4><div class="tablewrap"><table class="tl"><tbody>`; }
     const [ico, lab] = evLabel(e.tipo_evento);
     out += `<tr><td class="muted tlh">${f.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}</td>` +
-      (conPersona ? `<td><a href="#" data-c="${esc(e.email)}"><b>${esc(e.nombre || e.email)}</b></a>${e.empresa ? `<br><span class="muted">${esc(e.empresa)}</span>` : ""}</td>` : "") +
+      (conPersona ? `<td><a href="#" data-c="${esc(e.email)}"><b>${esc(e.nombre || e.email)}</b></a>${e.interno ? ' <span class="chip tmchip">Equipo</span>' : ""}${e.empresa ? `<br><span class="muted">${esc(e.empresa)}</span>` : ""}</td>` : "") +
       `<td>${ico} ${esc(lab)}</td><td class="muted">${evDetalle(e)}</td></tr>`;
   });
   return out + "</tbody></table></div>";
@@ -48,7 +48,7 @@ function csv(evs) {
 }
 
 /* ── Vista: historial general (o de un correo) con filtros ── */
-const H = { dias: 30, q: "", tipo: "", hitos: false, max: 300 };
+const H = { dias: 30, q: "", tipo: "", hitos: false, equipo: false, max: 300 };
 async function historial(email) {
   app.innerHTML = bar('<button class="pill" id="back">← Contactos</button>') + `<h2>${email ? "Historial de " + esc(email) : "Historial general"}</h2><div class="loader"><span class="spin"></span><p class="lmsg">Cargando eventos…</p></div>`;
   wireOut(); $("#back").onclick = list;
@@ -64,12 +64,13 @@ async function historial(email) {
       ${email ? "" : `<input type="search" id="hq" placeholder="Buscar persona, correo o empresa…" value="${esc(H.q)}" />`}
       <select id="ht"><option value="">Todos los eventos</option>${tipos.map((t) => `<option value="${t}" ${H.tipo === t ? "selected" : ""}>${esc(evLabel(t)[1])}</option>`).join("")}</select>
       <label class="chk"><input type="checkbox" id="hh" ${H.hitos ? "checked" : ""}/> Solo hitos</label>
+      ${email ? "" : `<label class="chk"><input type="checkbox" id="he" ${H.equipo ? "checked" : ""}/> Incluir equipo Lanek</label>`}
       <button class="pill" id="hcsv">Exportar CSV</button>
     </div><p class="muted" id="hcount"></p><div id="hlist"></div>`;
   wireOut(); $("#back").onclick = list;
   const draw = () => {
     const q = H.q.trim().toLowerCase();
-    const evs = all.filter((e) => (!H.tipo || e.tipo_evento === H.tipo) && (!H.hitos || evLabel(e.tipo_evento)[2]) &&
+    const evs = all.filter((e) => (email || H.equipo || !e.interno) && (!H.tipo || e.tipo_evento === H.tipo) && (!H.hitos || evLabel(e.tipo_evento)[2]) &&
       (!q || `${e.email} ${e.nombre} ${e.empresa}`.toLowerCase().includes(q)));
     $("#hcount").textContent = `${evs.length} eventos${r.total > all.length ? ` (se cargaron los ${all.length} más recientes de ${r.total})` : ""}`;
     $("#hlist").innerHTML = timeline(evs.slice(0, H.max), !email) + (evs.length > H.max ? `<p><button class="pill" id="hmore">Ver más (${evs.length - H.max} restantes)</button></p>` : "");
@@ -81,6 +82,7 @@ async function historial(email) {
   if ($("#hq")) $("#hq").oninput = (e) => { H.q = e.target.value; H.max = 300; draw(); };
   $("#ht").onchange = (e) => { H.tipo = e.target.value; H.max = 300; draw(); };
   $("#hh").onchange = (e) => { H.hitos = e.target.checked; H.max = 300; draw(); };
+  if ($("#he")) $("#he").onchange = (e) => { H.equipo = e.target.checked; H.max = 300; draw(); };
   draw();
 }
 
@@ -104,14 +106,16 @@ async function list() {
   const r = await call("admin_list").catch(() => ({ error: "Error de conexión" }));
   if (r.auth) return login("Sesión expirada");
   if (r.error) return (app.innerHTML = `<p class="err">${esc(r.error)}</p>`);
-  const pend = r.contactos.filter((c) => (c.fecha_solicitud_sitio && !c.acceso_sitio) || (c.fecha_solicitud_dataroom && !c.acceso_dataroom)).length;
+  const equipo = r.contactos.filter((c) => c.interno).length;
+  r.contactos = r.contactos.filter((c) => !c.interno).concat(r.contactos.filter((c) => c.interno)); // equipo al final
+  const pend = r.contactos.filter((c) => !c.interno && (c.fecha_solicitud_sitio && !c.acceso_sitio) || (c.fecha_solicitud_dataroom && !c.acceso_dataroom)).length;
   const perm = (c, f) => `<button class="pill ${c[f] ? "on" : "off"}" data-e="${esc(c.email)}" data-f="${f}" data-v="${c[f]}">${c[f] ? "Aprobado · revocar" : "Aprobar"}</button>
     ${!c[f] && c["fecha_solicitud_" + f.slice(7)] ? `<div class="muted">solicitó ${esc(String(c["fecha_solicitud_" + f.slice(7)]).slice(0, 10))}</div>` : ""}`;
   app.innerHTML = bar('<button class="pill" id="hist">Historial</button><button class="pill" id="agg">Vista agregada</button>') +
-    `<p class="muted">${r.contactos.length} contactos · ${pend} con solicitudes pendientes</p>
+    `<p class="muted">${r.contactos.length - equipo} prospectos · ${pend} con solicitudes pendientes${equipo ? ` · ${equipo} del equipo Lanek (sin avisos ni estadísticas)` : ""}</p>
     <div class="tablewrap"><table><thead><tr><th>Contacto</th><th>Sitio</th><th>Data room</th><th>Visitas</th><th>Tiempo</th><th>Última actividad</th></tr></thead><tbody>
-    ${r.contactos.slice().reverse().map((c) => `<tr>
-      <td><a href="#" data-c="${esc(c.email)}"><b>${esc(c.nombre || "—")}</b></a><br><span class="muted">${esc(c.email)}${c.empresa ? " · " + esc(c.empresa) : ""}</span></td>
+    ${r.contactos.filter((c) => !c.interno).reverse().concat(r.contactos.filter((c) => c.interno)).map((c) => `<tr${c.interno ? ' class="tm"' : ""}>
+      <td><a href="#" data-c="${esc(c.email)}"><b>${esc(c.nombre || "—")}</b></a>${c.interno ? ' <span class="chip tmchip">Equipo</span>' : ""}<br><span class="muted">${esc(c.email)}${c.empresa ? " · " + esc(c.empresa) : ""}</span></td>
       <td>${perm(c, "acceso_sitio")}</td><td>${perm(c, "acceso_dataroom")}</td>
       <td>${c.agg.visitas}</td><td>${fmtDur(c.agg.seg)}</td><td class="muted">${fdate(c.agg.last)}</td></tr>`).join("")}</tbody></table></div>`;
   wireOut();
