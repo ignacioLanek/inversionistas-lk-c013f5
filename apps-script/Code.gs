@@ -308,7 +308,8 @@ const ROUTES = {
     return { ok: true, token: signToken('site', email, SITE_TTL), email: email };
   },
   contenido: (b) => {
-    need(b.token, 'site');
+    const quien = need(b.token, 'site');
+    if (!getContacto(quien)) throw new Error('AUTH'); // contacto eliminado (o base reiniciada): vuelve a pedir el correo
     const cache = CacheService.getScriptCache(), hit = cache.get('contenido_v1');
     if (hit) return { secciones: JSON.parse(hit) };
     const deck = deckSlides();
