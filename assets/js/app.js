@@ -191,16 +191,13 @@ function slideViewer(box, sec) {
       <div class="sv-stage">
         <img class="sv-img" alt="" hidden />
         <div class="sv-load"><span class="spin" aria-hidden="true"></span><span class="sr">Cargando diapositiva…</span></div>
-        <button type="button" class="sv-hit sv-hit-prev" tabindex="-1" aria-hidden="true"></button>
-        <button type="button" class="sv-hit sv-hit-next" tabindex="-1" aria-hidden="true"></button>
+        <button type="button" class="sv-arrow sv-prev" aria-label="Diapositiva anterior"><span aria-hidden="true">‹</span></button>
+        <button type="button" class="sv-arrow sv-next" aria-label="Diapositiva siguiente"><span aria-hidden="true">›</span></button>
       </div>
       <div class="sv-bar">
         <button type="button" class="pill sv-reset" aria-label="Volver a la primera diapositiva">↺ Reiniciar</button>
-        <span class="sv-nav">
-          <button type="button" class="pill sv-prev" aria-label="Diapositiva anterior">← Anterior</button>
-          <span class="sv-count" aria-live="polite"></span>
-          <button type="button" class="pill sv-next" aria-label="Diapositiva siguiente">Siguiente →</button>
-        </span>
+        <span class="sv-count" aria-live="polite"></span>
+        <button type="button" class="pill sv-full-btn" aria-pressed="false">⤢ Ampliar</button>
       </div>
       <div class="sv-notes" aria-live="polite"></div>
     </div>`;
@@ -234,9 +231,19 @@ function slideViewer(box, sec) {
   $(".sv-prev", box).onclick = () => show(i - 1);
   $(".sv-next", box).onclick = () => show(i + 1);
   $(".sv-reset", box).onclick = () => show(0);
-  $(".sv-hit-prev", box).onclick = () => show(i - 1);
-  $(".sv-hit-next", box).onclick = () => show(i + 1);
+  /* Ampliar: la misma presentación a pantalla completa (sirve en iPhone, donde no hay fullscreen de elementos) */
+  const fullBtn = $(".sv-full-btn", box);
+  const setFull = (on) => {
+    root.classList.toggle("sv-full", on);
+    document.body.classList.toggle("sv-lock", on);
+    fullBtn.textContent = on ? "✕ Cerrar" : "⤢ Ampliar";
+    fullBtn.setAttribute("aria-pressed", String(on));
+    root.focus({ preventScroll: true });
+    track("diapositiva_vista", { seccion: `${sec.id}#ampliar` });
+  };
+  fullBtn.onclick = () => setFull(!root.classList.contains("sv-full"));
   root.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && root.classList.contains("sv-full")) { e.preventDefault(); setFull(false); return; }
     if (e.key === "ArrowRight" || e.key === "PageDown") { e.preventDefault(); show(i + 1); }
     else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); show(i - 1); }
     else if (e.key === "Home") { e.preventDefault(); show(0); }
